@@ -131,6 +131,30 @@ def create_issue():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+        
+        
+        
+#DEBUG
+
+
+@app.route('/api/issues', methods=['GET'])
+def debug_get_issues():
+    try:
+        # Простейший запрос без фильтрации
+        result = db.session.execute(text('SELECT * FROM issues ORDER BY "Created_at" DESC'))
+        
+        # Конвертируем в список словарей
+        issues = [dict(row._mapping) for row in result]
+        
+        # Конвертируем даты в строки
+        for issue in issues:
+            if 'Created_at' in issue:
+                issue['Created_at'] = issue['Created_at'].isoformat()
+        
+        return jsonify(issues)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
