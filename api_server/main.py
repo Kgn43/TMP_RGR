@@ -1,9 +1,11 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text  
+from werkzeug.middleware.proxy_fix import ProxyFix
 import requests
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Подключение к PostgreSQL-БД
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@db:5432/root'
