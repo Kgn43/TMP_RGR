@@ -4,6 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install psycopg2
+RUN pip install flask flask-sqlalchemy psycopg2-binary
 
 CMD ["python", "-u", "main.py"]

@@ -12,6 +12,8 @@ services:
       context: DB
     container_name:
       db_postgres_lr_3
+    ports:
+      - "54322:5432" # DElete ThiS
     volumes:
       - db_volume:/home/
     networks:
@@ -24,39 +26,14 @@ services:
       retries: 3
       start_period: 5s
 
-  api_server:
-    build:
-      context: api_server
-      args:
-        UID: ${UID}
-        GID: ${GID}
-    restart: always
-    ports:
-      - "15000:15000"
-    environment:
-      TZ: ${TZ}
-    env_file:
-      - .env
-    container_name:
-      api_server_lr_3
-    networks:
-      - my_net_lr_3
-    depends_on:
-      - db
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
+  
 
   pgadmin:
     build:
       context: pgAdmin  
     container_name: pgadmin_lr_3
     ports:
-      - "5432:5432"  # пробрасываем порт 5432 на хост
+      - "8080:80"
     networks:
       - my_net_lr_3
     restart: always
