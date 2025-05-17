@@ -5,7 +5,7 @@
 -- Dumped from database version 17.5 (Debian 17.5-1.pgdg120+1)
 -- Dumped by pg_dump version 17.5 (Debian 17.5-1.pgdg120+1)
 
--- Started on 2025-05-17 08:37:11 UTC
+-- Started on 2025-05-17 11:21:05 UTC
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -73,10 +73,10 @@ CREATE TABLE public.employees (
     "Name" character varying(20) NOT NULL,
     "Surname" character varying(20) NOT NULL,
     "Role" integer NOT NULL,
-    "Phone_number" character varying(20) NOT NULL,
+    "Phone_number" character varying(20),
+    "Telegram" character varying(20),
     "Login" character varying(50) NOT NULL,
-    "Passwd" text NOT NULL,
-    "Telegram" character varying(20)
+    "Passwd" text NOT NULL
 );
 
 
@@ -271,18 +271,18 @@ ALTER TABLE ONLY public.statuses ALTER COLUMN id SET DEFAULT nextval('public.sta
 --
 
 INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (1, 'Магазин одежды "Cropp"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (2, 'Магазин обуви "Ecco"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (3, 'Бутик "Zara"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (4, 'Магазин электроники "Samsung"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (5, 'Ювелирный магазин "Sokolov"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (6, 'Спортивный магазин "Adidas"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (7, 'Книжный магазин "Читай-город"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (8, 'Детский магазин "Детский мир"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (9, 'Аптека "36,6"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (10, 'Супермаркет "ВкусВилл"', 1, 2);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (11, 'Магазин косметики "Lush"', 2, 3);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (12, 'Магазин бытовой техники "Miele"', 2, 3);
-INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (13, 'Салон оптики "Линзмастер"', 2, 3);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (2, 'Бутик "Zara"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (3, 'Магазин электроники "Samsung"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (4, 'Ювелирный магазин "Sokolov"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (5, 'Спортивный магазин "Adidas"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (6, 'Книжный магазин "Читай-город"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (7, 'Детский магазин "Детский мир"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (8, 'Аптека "36,6"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (9, 'Супермаркет "ВкусВилл"', 1, 2);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (10, 'Магазин косметики "Lush"', 2, 3);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (11, 'Магазин бытовой техники "Miele"', 2, 3);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (12, 'Салон оптики "Линзмастер"', 2, 3);
+INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (13, 'Пекарня "Буше"', 2, 3);
 INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (14, 'Зоомагазин "4 Лапы"', 2, 3);
 INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (15, 'Магазин игрушек "LEGO"', 2, 3);
 INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") VALUES (16, 'Цветочный магазин "Букет"', 2, 3);
@@ -294,9 +294,9 @@ INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") 
 -- Data for Name: employees; Type: TABLE DATA; Schema: public; Owner: root
 --
 
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Login", "Passwd", "Telegram") VALUES (3, 'Илья', 'Дорош', 2, '89132131991', 'onlylucky', 'q1w2e3r4', '1169347875');
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Login", "Passwd", "Telegram") VALUES (2, 'Данил', 'Пономаренко', 2, '89236589058', 'era', 'qwerty', '1169347875');
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Login", "Passwd", "Telegram") VALUES (1, 'Фёдор', 'Мокрецов', 1, '89635749737', 'kgn', '1234', '1169347875');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram", "Login", "Passwd") VALUES (1, 'Фёдор', 'Мокрецов', 1, '89635749737', '1169347875', 'kgn', '1234');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram", "Login", "Passwd") VALUES (2, 'Данил', 'Пономаренко', 2, '89236589058', '1169347875', 'era', 'qwerty');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram", "Login", "Passwd") VALUES (3, 'Илья', 'Дорош', 2, '89132131991', '1169347875', 'onlylucky', 'q1w2e3r4');
 
 
 --
@@ -453,7 +453,7 @@ ALTER TABLE ONLY public.departments
     ADD CONSTRAINT responsible FOREIGN KEY ("Responsible_employee_id") REFERENCES public.employees(id) NOT VALID;
 
 
--- Completed on 2025-05-17 08:37:11 UTC
+-- Completed on 2025-05-17 11:21:05 UTC
 
 --
 -- PostgreSQL database dump complete
