@@ -57,7 +57,7 @@ services:
       context: pgAdmin  
     container_name: pgadmin_lr_3
     ports:
-      - "8080:80"
+      - "8888:80"
     networks:
       - my_net_lr_3
     restart: always
