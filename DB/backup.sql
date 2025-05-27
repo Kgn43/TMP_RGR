@@ -74,7 +74,7 @@ CREATE TABLE public.employees (
     "Surname" character varying(20) NOT NULL,
     "Role" integer NOT NULL,
     "Phone_number" character varying(20),
-    "Telegram" character varying(20),
+    "Telegram_id" character varying(20),
     "Login" character varying(50) NOT NULL,
     "Passwd" text NOT NULL
 );
@@ -294,9 +294,9 @@ INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") 
 -- Data for Name: employees; Type: TABLE DATA; Schema: public; Owner: root
 --
 
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram", "Login", "Passwd") VALUES (1, 'Фёдор', 'Мокрецов', 1, '89635749737', '1169347875', 'kgn', '1234');
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram", "Login", "Passwd") VALUES (2, 'Данил', 'Пономаренко', 2, '89236589058', '1169347875', 'era', 'qwerty');
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram", "Login", "Passwd") VALUES (3, 'Илья', 'Дорош', 2, '89132131991', '1169347875', 'onlylucky', 'q1w2e3r4');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (1, 'Фёдор', 'Мокрецов', 1, '89635749737', '1169347875', 'kgn', '1234');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (2, 'Данил', 'Пономаренко', 2, '89236589058', '1169347875', 'era', 'qwerty');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (3, 'Илья', 'Дорош', 2, '89132131991', '1169347875', 'onlylucky', 'q1w2e3r4');
 
 
 --
