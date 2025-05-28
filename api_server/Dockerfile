@@ -10,6 +10,7 @@ RUN pip install \
     waitress==3.0.2 \
     requests==2.32.3 \
     werkzeug==3.1.3 \
+    Flask-JWT-Extended \
     && pip cache purge
 
 CMD ["python", "-u", "main.py"]

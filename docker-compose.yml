@@ -12,8 +12,8 @@ services:
       context: DB
     container_name:
       db_postgres_lr_3
-#    ports:
-#      - "54322:5432" # DElete ThiS
+    ports:
+     - "54322:5432" # DElete ThiS
     volumes:
       - db_volume:/home/
     networks:
@@ -26,17 +26,17 @@ services:
       retries: 3
       start_period: 5s
 
-  api:
-    build:
-      context: api_server  
-    container_name: api_lr_3
-    ports:
-      - "15000:15000"
-    networks:
-      - my_net_lr_3
-    restart: always
-    depends_on:
-      - db
+  # api:
+  #   build:
+  #     context: api_server  
+  #   container_name: api_lr_3
+  #   ports:
+  #     - "15000:15000"
+  #   networks:
+  #     - my_net_lr_3
+  #   restart: always
+  #   depends_on:
+  #     - db
 
   
 #   bot:

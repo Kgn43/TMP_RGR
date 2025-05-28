@@ -115,7 +115,7 @@ ALTER SEQUENCE public.employess_id_seq OWNED BY public.employees.id;
 CREATE TABLE public.issues (
     id integer NOT NULL,
     "Department_id" integer NOT NULL,
-    "Created_at" timestamp without time zone NOT NULL,
+    "Created_at" timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "Status" integer NOT NULL,
     "Description" character varying(100) NOT NULL
 );

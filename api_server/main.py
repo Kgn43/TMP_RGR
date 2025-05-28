@@ -5,15 +5,28 @@ import requests
 from waitress import serve
 from models import db, Role, Employee, Department, Status, Issue
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
+import re
+from werkzeug.security import generate_password_hash
+
+# from flask_jwt_extended import (
+#     JWTManager, jwt_required, create_access_token,
+#     create_refresh_token, get_jwt_identity, get_jwt
+# )
+# from datetime import timedelta
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@db:5432/root'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@127.0.0.1:54322/root'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
+#app.config["JWT_SECRET_KEY"] = "aboba_aboba_aboba_aboba"
+#app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) 
+#app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 
 db.init_app(app)
+#jwt = JWTManager(app)
 
 
 ERROR_MESSAGES = {
@@ -21,6 +34,18 @@ ERROR_MESSAGES = {
         "error_code": "INTERNAL_SERVER_ERROR",
         "message": "Произошла внутренняя ошибка сервера. Пожалуйста, попробуйте позже."
     },
+    "VALIDATION_ERROR": {
+        "error_code": "VALIDATION_ERROR",
+        "message": "Ошибка валидации входных данных."
+    },
+    "BAD_REQUEST": {
+        "error_code": "BAD_REQUEST",
+        "message": "Некорректный запрос."
+    },
+    "CONFLICT": {
+        "error_code": "CONFLICT",
+        "message": "Конфликт данных. Ресурс уже существует."
+    }
     
 }
 
@@ -70,29 +95,305 @@ def get_employees():
 
     except Exception as e:
         # Логирование ошибки (в реальном приложении)
-        # app.logger.error(f"Error in get_employees: {str(e)}")
+        ########################################################## app.logger.error(f"Error in get_employees: {str(e)}")
         print(f"Error in get_employees: {str(e)}") # Для отладки, если логгер не настроен
         return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
     
 
 @app.route('/api/employees', methods=['POST']) #создание нового сотрудника
 def new_employee():
-    return
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                **ERROR_MESSAGES["BAD_REQUEST"],
+                "details": "Тело запроса не может быть пустым и должно содержать JSON."
+            }), 400
+    
+        errors = {}
+        #Проверяем, что поля не пустые
+        required_fields = {
+            "name": "Имя", "surname": "Фамилия", "role_id": "ID роли",
+            "login": "Логин", "passwd": "Пароль",
+            "phone_number": "Номер телефона", "telegram_id": "Telegram ID"
+        }
+        for field_key, field_name in required_fields.items():
+            if not data.get(field_key):
+                errors[field_key] = f"Поле '{field_name}' является обязательным и не может быть пустым."
+        
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        name = str(data['name']).strip()
+        surname = str(data['surname']).strip()
+        role_id_str = str(data['role_id']).strip()
+        login = str(data['login']).strip()
+        passwd = str(data['passwd'])
+        phone_number = str(data['phone_number']).strip()
+        telegram_id = str(data['telegram_id']).strip()
+        
+        #Валидация имени (кириллица, 1-20 символов)
+        if not re.fullmatch(r"^[а-яА-ЯёЁ\s-]+$", name) or not (1 <= len(name) <= 20):
+            errors["name"] = "Имя должно содержать только кириллицу (1-20 символов), пробелы или дефисы."
+        
+        #Валидация фамилии (кириллица, 1-20 символов)
+        if not re.fullmatch(r"^[а-яА-ЯёЁ\s-]+$", surname) or not (1 <= len(surname) <= 20):
+            errors["surname"] = "Фамилия должна содержать только кириллицу (1-20 символов), пробелы или дефисы."
+
+        #Валидация логина (латиница, цифры, _, 1-30 символов, уникальный)
+        if not re.fullmatch(r"^[a-zA-Z0-9_]+$", login) or not (1 <= len(login) <= 30):
+            errors["login"] = "Логин должен содержать латиницу, цифры, _ (1-30 символов)."
+        elif db.session.query(Employee).filter_by(login=login).first(): # Проверка уникальности
+            errors["login"] = "Пользователь с таким логином уже существует."
+        
+        #Валидация пароля (4-30 символов)
+        if not (4 <= len(passwd) <= 30):
+            errors["passwd"] = "Пароль должен быть от 4 до 30 символов."
+
+        #Валидация номера телефона (Ровно 11 цифр, начинается на 89. НЕ УНИКАЛЕН.)
+        if not re.fullmatch(r"^89\d{9}$", phone_number):
+            errors["phone_number"] = "Номер телефона должен состоять ровно из 11 цифр и начинаться на '89'."
+
+        #Валидация Telegram ID (Ровно 10 цифр. НЕ УНИКАЛЕН.)
+        if not re.fullmatch(r"^\d{10}$", telegram_id):
+            errors["telegram_id"] = "Telegram ID должен состоять ровно из 10 цифр."
+
+        #Валидация ID Роли
+        role_id = None
+        try:
+            role_id = int(role_id_str)
+            if not db.session.query(Role).get(role_id):
+                errors["role_id"] = f"Роль с ID {role_id} не найдена."
+        except ValueError:
+            errors["role_id"] = "ID роли должен быть целым числом."
+        
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+        
+        hashed_password = generate_password_hash(passwd)
+
+        new_employee_obj = Employee(
+            name=name, surname=surname, role_id=role_id,
+            login=login, passwd=hashed_password,
+            phone_number=phone_number, telegram_id=telegram_id
+        )
+        
+        db.session.add(new_employee_obj)
+        db.session.commit()
+
+        role_name_for_response = new_employee_obj.role_obj.role_name if new_employee_obj.role_obj else None
+
+        created_employee_data = {
+            "id": new_employee_obj.id, "name": new_employee_obj.name, "surname": new_employee_obj.surname,
+            "role_id": new_employee_obj.role_id, "role_name": role_name_for_response,
+            "login": new_employee_obj.login, "phone_number": new_employee_obj.phone_number,
+            "telegram_id": new_employee_obj.telegram_id
+        }
+        
+        return jsonify(created_employee_data), 201
+
+    except IntegrityError as e:
+        db.session.rollback()
+        print(f"IntegrityError in new_employee: {str(e.orig)}")
+        error_detail = str(e.orig).lower()
+        if "employees_login_key" in error_detail or ("unique constraint" in error_detail and "login" in error_detail):
+            return jsonify({**ERROR_MESSAGES["CONFLICT"], "errors": {"login": "Пользователь с таким логином уже существует (ошибка БД)."}}), 409
+        return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in new_employee: {str(e)}")
+        return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['DELETE']) #удаление сотрудника
 def delete_employee(employee_id):
-    return
+    try:
+        #Находим сотрудника по ID
+        employee = db.session.query(Employee).get(employee_id)
+
+        if not employee:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
+                "details": f"Сотрудник с ID {employee_id} не найден для удаления."
+            }), 404
+
+        #Перед удалением проверяем ответственнен ли сотрудник за отдел
+        department_as_responsible = db.session.query(Department).filter_by(responsible_employee_id_fk=employee_id).first()
+        if department_as_responsible:
+            return jsonify({
+                "error_code": "DELETION_RESTRICTED",
+                "message": "Нельзя удалить сотрудника, так как он является ответственным за отдел.",
+                "department_id": department_as_responsible.id,
+                "department_name": department_as_responsible.name
+            }), 409
+
+        db.session.delete(employee)
+        db.session.commit()
+        
+        
+        return jsonify({"message": f"Сотрудник с ID {employee_id} успешно удален."}), 200
+
+    except IntegrityError as e: # Если удаление нарушает какие-то ограничения внешних ключей
+        db.session.rollback()
+        # app.logger.error(f"IntegrityError deleting employee ID {employee_id}: {str(e.orig)}")
+        print(f"IntegrityError deleting employee ID {employee_id}: {str(e.orig)}")
+        
+        return jsonify({
+            **ERROR_MESSAGES.get("CONFLICT", {"error_code": "CONFLICT", "message": "Конфликт данных."}),
+            "details": "Не удалось удалить сотрудника. Возможно, на него ссылаются другие записи (например, он ответственный за отдел)."
+        }), 409
+
+    except Exception as e:
+        db.session.rollback()
+        # app.logger.error(f"Error deleting employee ID {employee_id}: {str(e)}")
+        print(f"Error deleting employee ID {employee_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['GET']) #получение полной информации о сотруднике
 def get_employee_info(employee_id):
-    return
+    try:
+        # Пытаемся найти сотрудника и сразу загрузить информацию о его роли
+        employee = db.session.query(Employee).options(
+            joinedload(Employee.role_obj)
+        ).get(employee_id)
+
+        if not employee:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}), 
+                "details": f"Сотрудник с ID {employee_id} не найден."
+            }), 404
+
+        # Формируем ответ
+        employee_data = {
+            "id": employee.id,
+            "name": employee.name,
+            "surname": employee.surname,
+            "role_id": employee.role_id,
+            "role_name": employee.role_obj.role_name if employee.role_obj else "Роль не найдена",
+            "phone_number": employee.phone_number,
+            "telegram_id": employee.telegram_id,
+            "login": employee.login
+        }
+        
+        return jsonify(employee_data), 200
+
+    except Exception as e:
+        ############################## app.logger.error(f"Error in get_employee_info for ID {employee_id}: {str(e)}")
+        print(f"Error in get_employee_info for ID {employee_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['PUT']) #изменение данных сотрудника
 def update_employee_info(employee_id):
-    return
+    try:
+        employee = db.session.query(Employee).get(employee_id)
+        if not employee:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
+                "details": f"Сотрудник с ID {employee_id} не найден."
+            }), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                **ERROR_MESSAGES["BAD_REQUEST"],
+                "details": "Тело запроса не может быть пустым и должно содержать JSON данные для обновления."
+            }), 400
+
+        errors = {}
+
+        # Поля, которые МОЖНО изменять. Все они обязательны в запросе.
+        updatable_required_fields = {
+            "name": "Имя", "surname": "Фамилия", "role_id": "ID роли",
+            "phone_number": "Номер телефона", "telegram_id": "Telegram ID"
+        }
+        for field_key, field_name in updatable_required_fields.items():
+            value = data.get(field_key)
+            if value is None or not str(value).strip():
+                errors[field_key] = f"Поле '{field_name}' является обязательным и не может быть пустым в запросе."
+        
+        # Проверяем, что поля login и passwd не пытаются передать с целью изменения,
+        # или просто информируем, что они будут проигнорированы.
+        # Для простоты, мы их просто проигнорируем, если они есть в data.
+
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        # Извлечение данных (только изменяемых полей)
+        name = str(data['name']).strip()
+        surname = str(data['surname']).strip()
+        role_id_str = str(data['role_id']).strip()
+        phone_number = str(data['phone_number']).strip()
+        telegram_id = str(data['telegram_id']).strip()
+
+        # Валидация и обновление данных
+        # Имя
+        if not re.fullmatch(r"^[а-яА-ЯёЁ\s-]+$", name) or not (1 <= len(name) <= 20):
+            errors["name"] = "Имя: кириллица (1-20 симв.), пробелы, дефисы."
+        else:
+            employee.name = name
+        
+        # Фамилия
+        if not re.fullmatch(r"^[а-яА-ЯёЁ\s-]+$", surname) or not (1 <= len(surname) <= 20):
+            errors["surname"] = "Фамилия: кириллица (1-20 симв.), пробелы, дефисы."
+        else:
+            employee.surname = surname
+
+        # Номер телефона
+        if not re.fullmatch(r"^89\d{9}$", phone_number):
+            errors["phone_number"] = "Номер телефона: 11 цифр, начинается на '89'."
+        else:
+            employee.phone_number = phone_number
+
+        # Telegram ID
+        if not re.fullmatch(r"^\d{10}$", telegram_id):
+            errors["telegram_id"] = "Telegram ID: 10 цифр."
+        else:
+            employee.telegram_id = telegram_id
+        
+        # ID Роли
+        try:
+            role_id = int(role_id_str)
+            role_obj = db.session.query(Role).get(role_id)
+            if not role_obj:
+                errors["role_id"] = f"Роль с ID {role_id} не найдена."
+            else:
+                employee.role_id = role_id # Обновляем role_id
+                employee.role_obj = role_obj # Также обновляем связанный объект для консистентности в сессии
+        except ValueError:
+            errors["role_id"] = "ID роли должен быть целым числом."
+        
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        db.session.commit()
+
+        db.session.refresh(employee)
+        db.session.expire(employee, ['role_obj']) # Говорит SQLAlchemy, что 'role_obj' нужно перезагрузить при следующем доступе
+                                               # или используем joinedload при перезапросе:
+        # updated_employee = db.session.query(Employee).options(joinedload(Employee.role_obj)).get(employee_id)
+
+
+        employee_data = {
+            "id": employee.id,
+            "name": employee.name,
+            "surname": employee.surname,
+            "role_id": employee.role_id,
+            "role_name": employee.role_obj.role_name if employee.role_obj else None,
+            "login": employee.login,
+            "phone_number": employee.phone_number,
+            "telegram_id": employee.telegram_id
+        }
+        
+        return jsonify(employee_data), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        # app.logger.error(f"Error updating employee ID {employee_id}: {str(e)}")
+        print(f"Error updating employee ID {employee_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 
@@ -108,10 +409,9 @@ def update_employee_info(employee_id):
 def get_departments():
     try:
         # Загружаем отделы и сразу информацию об ответственных сотрудниках
-        # Используем joinedload для одного запроса к БД (LEFT JOIN)
         departments_query = db.session.query(Department).options(
-            joinedload(Department.responsible_employee).joinedload(Employee.role_obj) # Также загружаем роль ответственного, если нужно
-        ).order_by(Department.floor, Department.name).all() # Пример сортировки
+            joinedload(Department.responsible_employee).joinedload(Employee.role_obj)
+        ).order_by(Department.floor, Department.name).all()
 
         result_departments = []
         for dept in departments_query:
@@ -120,9 +420,7 @@ def get_departments():
                 responsible_employee_info = {
                     "id": dept.responsible_employee.id,
                     "name": dept.responsible_employee.name,
-                    "surname": dept.responsible_employee.surname,
-                    "login": dept.responsible_employee.login,
-                    "role": dept.responsible_employee.role_obj.role_name if dept.responsible_employee.role_obj else None
+                    "surname": dept.responsible_employee.surname
                 }
             
             department_data = {
@@ -145,22 +443,273 @@ def get_departments():
 
 @app.route('/api/departments', methods=['POST']) #создание нового отдела
 def new_department():
-    return
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                **ERROR_MESSAGES["BAD_REQUEST"],
+                "details": "Тело запроса не может быть пустым и должно содержать JSON."
+            }), 400
+
+        errors = {}
+
+        #Проверяем, что поля не пустые
+        required_fields = {
+            "name": "Название отдела",
+            "floor": "Этаж",
+            "responsible_employee_id": "ID ответственного сотрудника"
+        }
+        for field_key, field_name in required_fields.items():
+            value = data.get(field_key)
+            if value is None or (isinstance(value, str) and not value.strip()) or (isinstance(value, (int, float)) and value == 0 and field_key == 'floor'): # Добавил явную проверку на 0 для floor
+                if field_key == 'floor' and value == 0: #Этаж 0 не может быть
+                     errors[field_key] = f"Поле '{field_name}' не может быть 0."
+                elif not value and value is not None and value !=0:
+                     errors[field_key] = f"Поле '{field_name}' не может быть пустым."
+                elif value is None:
+                     errors[field_key] = f"Поле '{field_name}' является обязательным."
+
+
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        name = str(data['name']).strip()
+        floor_str = str(data['floor']).strip()
+        responsible_employee_id_str = str(data['responsible_employee_id']).strip()
+
+        #Валидация названия отдела (кириллица, латиница, спецсимволы, 1-50 символов)
+        if not (1 <= len(name) <= 50):
+            errors["name"] = "Название отдела должно быть от 1 до 50 символов."
+
+        #Валидация этажей (число от 1 до 3)
+        floor = None
+        try:
+            floor = int(floor_str)
+            if not (1 <= floor <= 3):
+                errors["floor"] = "Этаж должен быть числом от 1 до 3."
+        except ValueError:
+            errors["floor"] = "Этаж должен быть целым числом."
+
+        #Валидация ID ответственного сотрудника
+        responsible_employee_id = None
+        try:
+            responsible_employee_id = int(responsible_employee_id_str)
+            if not db.session.query(Employee).get(responsible_employee_id):
+                errors["responsible_employee_id"] = f"Сотрудник с ID {responsible_employee_id} не найден."
+        except ValueError:
+            errors["responsible_employee_id"] = "ID ответственного сотрудника должен быть целым числом."
+        
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        #Создание нового отдела
+        new_department_obj = Department(
+            name=name,
+            floor=floor,
+            responsible_employee_id_fk=responsible_employee_id
+        )
+        
+        db.session.add(new_department_obj)
+        db.session.commit()
+
+        responsible_employee_name = None
+        if new_department_obj.responsible_employee:
+            responsible_employee_name = f"{new_department_obj.responsible_employee.name} {new_department_obj.responsible_employee.surname}"
+
+
+        created_department_data = {
+            "id": new_department_obj.id,
+            "name": new_department_obj.name,
+            "floor": new_department_obj.floor,
+            "responsible_employee_id": new_department_obj.responsible_employee_id_fk,
+            "responsible_employee_name": responsible_employee_name
+        }
+        
+        return jsonify(created_department_data), 201
+
+        
+    except Exception as e:
+        db.session.rollback()
+        # app.logger.error(f"Error in new_department: {str(e)}")
+        print(f"Error in new_department: {str(e)}")
+        return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
 
 
 @app.route('/api/departments/<int:department_id>', methods=['DELETE']) #удаление отдела
 def delete_department(department_id):
-    return
+    try:
+        department = db.session.query(Department).get(department_id)
+
+        if not department:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
+                "details": f"Отдел с ID {department_id} не найден для удаления."
+            }), 404
+
+        #Проверка, есть ли связанные происшествия
+        related_issue = db.session.query(Issue).filter_by(department_id_fk=department_id).first()
+        if related_issue:
+            return jsonify({
+                "error_code": "DELETION_RESTRICTED",
+                "message": "Нельзя удалить отдел, так как с ним связаны происшествия.",
+                "related_issue_id_example": related_issue.id
+            }), 409
+
+        db.session.delete(department)
+        db.session.commit()
+        
+        return jsonify({"message": f"Отдел с ID {department_id} успешно удален."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        # app.logger.error(f"Error deleting department ID {department_id}: {str(e)}")
+        print(f"Error deleting department ID {department_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/departments/<int:department_id>', methods=['GET']) #получение полной информации об отделе
 def get_department_info(department_id):
-    return
+    try:
+        department = db.session.query(Department).options(
+            joinedload(Department.responsible_employee).joinedload(Employee.role_obj), #Загружаем ответственного и его роль
+        ).get(department_id)
+
+        if not department:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}), 
+                "details": f"Отдел с ID {department_id} не найден."
+            }), 404
+
+        responsible_employee_info = None
+        if department.responsible_employee:
+            responsible_employee_info = {
+                "id": department.responsible_employee.id,
+                "name": department.responsible_employee.name,
+                "surname": department.responsible_employee.surname,
+                "login": department.responsible_employee.login
+            }
+
+        department_data = {
+            "id": department.id,
+            "name": department.name,
+            "floor": department.floor,
+            "responsible_employee": responsible_employee_info
+        }
+        
+        return jsonify(department_data), 200
+
+    except Exception as e:
+        # app.logger.error(f"Error in get_department_info for ID {department_id}: {str(e)}")
+        print(f"Error in get_department_info for ID {department_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/departments/<int:department_id>', methods=['PUT']) #изменение данных отдела
 def update_department_info(department_id):
-    return
+    try:
+        department = db.session.query(Department).get(department_id)
+        if not department:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
+                "details": f"Отдел с ID {department_id} не найден."
+            }), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                **ERROR_MESSAGES["BAD_REQUEST"],
+                "details": "Тело запроса не может быть пустым и должно содержать JSON данные для обновления."
+            }), 400
+
+        errors = {}
+
+        #Проверяем, что поля не пустые
+        required_fields_in_request = {
+            "name": "Название отдела",
+            "floor": "Этаж",
+            "responsible_employee_id": "ID ответственного сотрудника"
+        }
+        for field_key, field_name in required_fields_in_request.items():
+            value = data.get(field_key)
+            if value is None or (isinstance(value, str) and not value.strip()) or (isinstance(value, (int, float)) and value == 0 and field_key == 'floor'):
+                if field_key == 'floor' and value == 0:
+                     errors[field_key] = f"Поле '{field_name}' не может быть 0."
+                elif not value and value is not None and value !=0 :
+                     errors[field_key] = f"Поле '{field_name}' не может быть пустым."
+                elif value is None:
+                     errors[field_key] = f"Поле '{field_name}' является обязательным."
+
+
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        
+        name = str(data['name']).strip()
+        floor_str = str(data['floor']).strip()
+        responsible_employee_id_str = str(data['responsible_employee_id']).strip()
+
+        #Валидация названия отдела
+        if not (1 <= len(name) <= 50):
+            errors["name"] = "Название отдела должно быть от 1 до 50 символов."
+        else:
+            department.name = name
+        
+        #Валидация этажа
+        try:
+            floor = int(floor_str)
+            if not (1 <= floor <= 3):
+                errors["floor"] = "Этаж должен быть числом от 1 до 3."
+            else:
+                department.floor = floor
+        except ValueError:
+            errors["floor"] = "Этаж должен быть целым числом."
+
+        #Валидация ID ответственного сотрудника
+        try:
+            responsible_employee_id = int(responsible_employee_id_str)
+            responsible_employee_obj = db.session.query(Employee).get(responsible_employee_id)
+            if not responsible_employee_obj:
+                errors["responsible_employee_id"] = f"Сотрудник с ID {responsible_employee_id} не найден."
+            else:
+                department.responsible_employee_id_fk = responsible_employee_id
+                department.responsible_employee = responsible_employee_obj
+        except ValueError:
+            errors["responsible_employee_id"] = "ID ответственного сотрудника должен быть целым числом."
+        
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        db.session.commit()
+
+        updated_department = db.session.query(Department).options(
+            joinedload(Department.responsible_employee).joinedload(Employee.role_obj)
+        ).get(department_id)
+
+
+        responsible_employee_info = None
+        if updated_department.responsible_employee:
+            responsible_employee_info = {
+                "id": updated_department.responsible_employee.id,
+                "name": updated_department.responsible_employee.name,
+                "surname": updated_department.responsible_employee.surname,
+            }
+
+        department_data = {
+            "id": updated_department.id,
+            "name": updated_department.name,
+            "floor": updated_department.floor,
+            "responsible_employee_id": updated_department.responsible_employee_id_fk,
+            "responsible_employee": responsible_employee_info
+        }
+        
+        return jsonify(department_data), 200
+
+        
+    except Exception as e:
+        db.session.rollback()
+        # app.logger.error(f"Error updating department ID {department_id}: {str(e)}")
+        print(f"Error updating department ID {department_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 '''
@@ -172,11 +721,10 @@ def update_department_info(department_id):
 @app.route('/api/issues', methods=['GET']) #получение списка происшествий
 def get_issues():
     try:
-        # Загружаем происшествия и сразу информацию об отделах и статусах
         issues_query = db.session.query(Issue).options(
-            joinedload(Issue.department),  # Загрузка связанного отдела
-            joinedload(Issue.status_obj)   # Загрузка связанного статуса
-        ).order_by(Issue.created_at.desc()).all() # Пример сортировки: сначала новые
+            joinedload(Issue.department),  
+            joinedload(Issue.status_obj)   
+        ).order_by(Issue.created_at.desc()).all() #сначала новые
 
         result_issues = []
         for issue in issues_query:
@@ -191,7 +739,7 @@ def get_issues():
             if issue.status_obj:
                 status_info = {
                     "id": issue.status_obj.id,
-                    "name": issue.status_obj.status_name # Используем 'status_name' из модели Status
+                    "name": issue.status_obj.status_name
                 }
             
             issue_data = {
@@ -215,69 +763,200 @@ def get_issues():
 def new_issue():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({
+                **ERROR_MESSAGES["BAD_REQUEST"],
+                "details": "Тело запроса не может быть пустым и должно содержать JSON."
+            }), 400
+
+        errors = {}
+
+        #Проверяем, что поля не пустые
+        required_fields = {
+            "department_id": "ID отдела",
+            "description": "Описание происшествия"
+        }
+        for field_key, field_name in required_fields.items():
+            value = data.get(field_key)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                errors[field_key] = f"Поле '{field_name}' является обязательным и не может быть пустым."
         
-        # Проверяем обязательные поля
-        required_fields = ['department_id', 'description']
-        if not all(field in data for field in required_fields):
-            return jsonify({"error": "Не хватает обязательных полей"}), 400
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
+        department_id_str = str(data['department_id']).strip()
+        description = str(data['description']).strip()
+
+        #Валидация ID отдела (должен существовать)
+        department_id = None
+        department_obj = None
+        try:
+            department_id = int(department_id_str)
+            
+            department_obj = db.session.query(Department).options(
+                joinedload(Department.responsible_employee)
+            ).get(department_id)
+            if not department_obj:
+                errors["department_id"] = f"Отдел с ID {department_id} не найден."
+        except ValueError:
+            errors["department_id"] = "ID отдела должен быть целым числом."
+
+        #Валидация описания
+        if not (1 <= len(description) <= 100):
+            errors["description"] = "Описание происшествия должно быть от 1 до 100 символов."
         
-        #Создаём запись о происшествии
-        query = text('''
-            INSERT INTO issues ("Department_id", "Status", "Description", "Created_at")
-            VALUES (:department_id, 1, :description, CURRENT_TIMESTAMP)
-            RETURNING id
-        ''')
-        result = db.session.execute(query, {
-            'department_id': data['department_id'],
-            'description': data['description']
-        })
-        db.session.commit()
-        new_issue_id = result.fetchone()[0]
+        default_status_id = 1 #Новое проишествие
+        status_obj = db.session.query(Status).get(default_status_id)
+
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+
         
-        #Получаем данные для уведомления
-        dept_query = text('''
-            SELECT d."Name" as department_name, d."Floor", 
-                   e."Telegram" as telegram_token
-            FROM departments d
-            JOIN employees e ON d."Responsible_employee_id" = e.id
-            WHERE d.id = :dept_id
-        ''')
-        dept_result = db.session.execute(dept_query, {'dept_id': data['department_id']})
-        dept_info = dept_result.fetchone()
+        # Created_at будет установлено автоматически, если в модели есть server_default=func.now()
+        new_issue_obj = Issue(
+            department_id_fk=department_obj.id, # или department=department_obj
+            status_id_fk=status_obj.id,       # или status_obj=status_obj
+            description=description
+        )
         
-        #Отправляем уведомление в Telegram
-        if dept_info and dept_info.telegram_token:
+        db.session.add(new_issue_obj)
+        db.session.commit() # Получаем ID после коммита
+
+        # 4. Отправка уведомления в Telegram
+        notification_sent = False
+        if department_obj and department_obj.responsible_employee and department_obj.responsible_employee.telegram_id:
+            responsible_employee = department_obj.responsible_employee
+            
             notification_message = (
-                f"Отдел: {dept_info.department_name} (Этаж {dept_info.Floor})\n"
-                f"Описание: {data['description']}"
+                f"Новое происшествие ID: {new_issue_obj.id}\n"
+                f"Отдел: {department_obj.name} (Этаж {department_obj.floor})\n"
+                f"Описание: {description}"
             )
             
-            requests.post(
-                "http://bot:15001/api/notify",
-                json={
-                    "chat_id": dept_info.telegram_token,
-                    "message": notification_message
-                },
-                timeout=3
-            )
+            try:
+                bot_url = "http://bot:15001/api/notify"
+                response = requests.post(
+                    bot_url,
+                    json={
+                        "chat_id": responsible_employee.telegram_id, 
+                        "message": notification_message
+                    },
+                    timeout=5 # Увеличил таймаут на всякий случай
+                )
+                if response.status_code == 200:
+                    notification_sent = True
+                else:
+                    # Логируем ошибку от бота, но не прерываем основной процесс
+                    print(f"Ошибка отправки уведомления боту: {response.status_code} - {response.text}")
+            except requests.exceptions.RequestException as e_req:
+                # Логируем ошибку сети/подключения к боту
+                print(f"Ошибка сети при отправке уведомления боту: {e_req}")
         
-        return jsonify({
-            "id": new_issue_id,
-            "message": "Происшествие зарегистрировано",
-            "notification_sent": bool(dept_info and dept_info.telegram_token)
-        }), 201
+        # 5. Формирование успешного ответа
+        created_issue_data = {
+            "id": new_issue_obj.id,
+            "department_id": new_issue_obj.department_id_fk,
+            "department_name": department_obj.name,
+            "status_id": new_issue_obj.status_id_fk,
+            "status_name": status_obj.status_name, # Из модели Status
+            "description": new_issue_obj.description,
+            "created_at": new_issue_obj.created_at.isoformat() if new_issue_obj.created_at else None,
+            "message": "Происшествие зарегистрировано.",
+            "notification_sent": notification_sent
+        }
+        
+        return jsonify(created_issue_data), 201
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        # app.logger.error(f"Error in new_issue: {str(e)}")
+        print(f"Error in new_issue: {str(e)}")
+        return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
         
 
 @app.route('/api/issues/<int:issue_id>', methods=['PUT']) #изменение статуса инцидента
 def update_issue_status(issue_id):
-    return
+    try:
+        issue = db.session.query(Issue).get(issue_id)
+        if not issue:
+            return jsonify({
+                **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
+                "details": f"Происшествие с ID {issue_id} не найдено."
+            }), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                **ERROR_MESSAGES["BAD_REQUEST"],
+                "details": "Тело запроса не может быть пустым и должно содержать JSON."
+            }), 400
+
+        errors = {}
+
+        #Проверка наличия new_status_id
+        new_status_id_str = data.get("new_status_id")
+        if new_status_id_str is None or not str(new_status_id_str).strip():
+            errors["new_status_id"] = "Поле 'new_status_id' является обязательным и не может быть пустым."
+        
+
+        #Валидация new_status_id
+        new_status_id = None
+        new_status_obj = None
+        try:
+            new_status_id = int(str(new_status_id_str).strip())
+            new_status_obj = db.session.query(Status).get(new_status_id)
+            if not new_status_obj:
+                errors["new_status_id"] = f"Статус с ID {new_status_id} не найден."
+        except ValueError:
+            errors["new_status_id"] = "ID нового статуса должен быть целым числом."
+
+        if errors:
+            return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
+        
+        issue.status_id_fk = new_status_obj.id #Обновляем
+
+        db.session.commit()
+  
+        updated_issue_data = {
+            "message": "Статус происшествия успешно обновлен."
+        }
+        
+        return jsonify(updated_issue_data), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        # app.logger.error(f"Error updating status for issue ID {issue_id}: {str(e)}")
+        print(f"Error updating status for issue ID {issue_id}: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
+
+'''
+
+СТАТУСЫ
+
+'''
+
+@app.route('/api/statuses/', methods=['GET']) #получить список статусов
+def get_statuses():
+    try:
+        statuses_query = db.session.query(Status).order_by(Status.id).all()
+
+        result_statuses = []
+        for status_item in statuses_query:
+            status_data = {
+                "id": status_item.id,
+                "name": status_item.status_name
+            }
+            result_statuses.append(status_data)
+        
+        return jsonify(result_statuses), 200
+
+    except Exception as e:
+        # app.logger.error(f"Error in get_statuses: {str(e)}")
+        print(f"Error in get_statuses: {str(e)}")
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 if __name__ == '__main__':
-    serve(app, host="0.0.0.0", port=15000)
+    serve(app, host="127.0.0.1", port=15000)
