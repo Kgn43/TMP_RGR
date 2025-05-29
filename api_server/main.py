@@ -7,13 +7,15 @@ from models import db, Role, Employee, Department, Status, Issue
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 import re
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
-# from flask_jwt_extended import (
-#     JWTManager, jwt_required, create_access_token,
-#     create_refresh_token, get_jwt_identity, get_jwt
-# )
-# from datetime import timedelta
+from flask_jwt_extended import (
+    JWTManager, jwt_required, create_access_token,
+    create_refresh_token, get_jwt_identity, get_jwt
+)
+from datetime import timedelta
+
+import logging
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -21,12 +23,15 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@127.0.0.1:54322/root'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
-#app.config["JWT_SECRET_KEY"] = "aboba_aboba_aboba_aboba"
-#app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) 
-#app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+app.config["JWT_SECRET_KEY"] = "aboba_aboba_aboba_aboba"
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) 
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+ADMIN_ROLE_ID = 1
 
 db.init_app(app)
-#jwt = JWTManager(app)
+jwt = JWTManager(app)
+
+
 
 
 ERROR_MESSAGES = {
@@ -45,9 +50,136 @@ ERROR_MESSAGES = {
     "CONFLICT": {
         "error_code": "CONFLICT",
         "message": "Конфликт данных. Ресурс уже существует."
+    },
+    "NOT_FOUND": {
+        "error_code": "RESOURCE_NOT_FOUND",
+        "message": "Запрашиваемый ресурс не найден."
+    },
+    "FORBIDDEN": {
+        "error_code": "ACCESS_FORBIDDEN",
+        "message": "Доступ запрещен. Недостаточно прав."
+    },
+    "JWT_UNAUTHORIZED_ACCESS": {
+        "error_code": "UNAUTHORIZED_ACCESS",
+        "message": "Отсутствует или неверно сформирован заголовок авторизации с Bearer токеном."
+    },
+    "JWT_INVALID_TOKEN": {
+        "error_code": "INVALID_TOKEN",
+        "message": "Предоставленный токен недействителен или поврежден." 
+    },
+    "JWT_TOKEN_EXPIRED": {
+        "error_code": "TOKEN_EXPIRED",
+        "message": "Срок действия токена истек. Пожалуйста, обновите токен или войдите заново."
     }
     
 }
+
+
+'''
+
+ЛОГИ
+
+'''
+
+
+if not app.debug: # Настраиваем логирование для продакшена
+
+    for handler in list(app.logger.handlers):
+        app.logger.removeHandler(handler)
+
+    # Устанавливаем уровень логгера для приложения
+    app.logger.setLevel(logging.INFO) # Логируем INFO и выше
+    app.logger.propagate = False
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    app.logger.addHandler(stream_handler)
+
+
+def _prepare_log_prefix(log_level_str="INFO"): #для отображения в сообщении
+    
+    ip_address = request.access_route[0] if request.access_route and len(request.access_route) > 0 else request.remote_addr
+    
+    method = getattr(request, 'method', 'UNKNOWN_METHOD')
+    endpoint = getattr(request, 'path', 'UNKNOWN_ENDPOINT')
+    
+    return f"{log_level_str.upper()} {ip_address} {method} {endpoint}"
+
+
+
+'''
+
+ТОКЕНЫ
+
+'''
+
+@jwt.unauthorized_loader
+def unauthorized_response(callback_reason_why_token_is_missing):
+    log_prefix = _prepare_log_prefix("WARNING")
+    log_message = f"{log_prefix} 401 - Unauthorized: {callback_reason_why_token_is_missing}"
+    app.logger.warning(log_message)
+
+    response_data = ERROR_MESSAGES.get("JWT_UNAUTHORIZED_ACCESS")
+    return jsonify(response_data), 401
+
+@jwt.invalid_token_loader
+def invalid_token_response(callback_error_message):
+    log_prefix = _prepare_log_prefix("WARNING")
+    log_message = f"{log_prefix} 422 - Invalid Token: {callback_error_message}"
+    app.logger.warning(log_message)
+    
+    response_data = ERROR_MESSAGES.get("JWT_INVALID_TOKEN")
+    response_data_with_details = {**response_data, "details": str(callback_error_message)}
+    return jsonify(response_data_with_details), 422
+
+@jwt.expired_token_loader
+def expired_token_response(jwt_header, jwt_payload):
+    log_prefix = _prepare_log_prefix("INFO")
+    user_id = jwt_payload.get('sub')
+    log_message = f"{log_prefix} 401 - Expired Token for user ID: {user_id}"
+    app.logger.info(log_message)
+    
+    response_data = ERROR_MESSAGES.get("JWT_TOKEN_EXPIRED")
+    return jsonify(response_data), 401
+
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    log_prefix = _prepare_log_prefix("INFO") 
+    data = request.get_json()
+    if not data:
+        app.logger.warning(f"{log_prefix.replace('INFO', 'WARNING')} 400 - Bad Request: Тело запроса пустое.")
+        return jsonify({**ERROR_MESSAGES["BAD_REQUEST"], "details": "Тело запроса пустое."}), 400
+
+    login = data.get('login')
+    password = data.get('passwd')
+
+    if not login or not password:
+        app.logger.warning(f"{log_prefix.replace('INFO', 'WARNING')} 400 - Bad Request: Отсутствует логин или пароль")
+        return jsonify({**ERROR_MESSAGES["BAD_REQUEST"], "details": "Необходимо указать логин и пароль."}), 400
+
+    user = db.session.query(Employee).filter_by(login=login).first()
+
+    if user and check_password_hash(user.passwd, password):
+        additional_claims = {}
+        if user.role_obj: 
+            additional_claims["role_id"] = user.role_id
+
+        user_identity = str(user.id)
+        
+        access_token = create_access_token(identity=user_identity, additional_claims=additional_claims)
+        
+        return jsonify(access_token=access_token), 200
+    else:
+        app.logger.warning(f"{log_prefix.replace('INFO', 'WARNING')} 401 - Unauthorized: Неверный логин или пароль для пользователя: {login}.")
+        return jsonify({**ERROR_MESSAGES.get("UNAUTHORIZED", {}), "details": "Неверный логин или пароль."}), 401
+    
+def check_user_role(required_roles_ids):
+    claims = get_jwt()
+    user_role_id = claims.get("role_id")
+    if user_role_id is None or user_role_id not in required_roles_ids:
+        return False
+    return True
 
 
 
@@ -59,10 +191,11 @@ ERROR_MESSAGES = {
 
 
 @app.route('/api/employees', methods=['GET']) #получение списка сотрудников
+@jwt_required()
 def get_employees():
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
-        # Используем join для объединения таблиц и options(joinedload()) для эффективной загрузки ролей
-        # employees_query = db.session.query(Employee).options(db.joinedload(Employee.role)).all()
         
         employees_query = db.session.query(
             Employee.id,
@@ -94,14 +227,17 @@ def get_employees():
         return jsonify(result_employees), 200
 
     except Exception as e:
-        # Логирование ошибки (в реальном приложении)
-        ########################################################## app.logger.error(f"Error in get_employees: {str(e)}")
-        print(f"Error in get_employees: {str(e)}") # Для отладки, если логгер не настроен
+        app.logger.error(f"Error in get_employees: {str(e)}")
+        # print(f"Error in get_employees: {str(e)}")
         return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
     
 
 @app.route('/api/employees', methods=['POST']) #создание нового сотрудника
+@jwt_required()
 def new_employee():
+    if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.error(f"Error in get_employees: {str(e)}")
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         data = request.get_json()
         if not data:
@@ -142,7 +278,7 @@ def new_employee():
 
         #Валидация логина (латиница, цифры, _, 1-30 символов, уникальный)
         if not re.fullmatch(r"^[a-zA-Z0-9_]+$", login) or not (1 <= len(login) <= 30):
-            errors["login"] = "Логин должен содержать латиницу, цифры, _ (1-30 символов)."
+            errors["login"] = "Логин должен содержать латиницу, цифры (1-30 символов)."
         elif db.session.query(Employee).filter_by(login=login).first(): # Проверка уникальности
             errors["login"] = "Пользователь с таким логином уже существует."
         
@@ -207,7 +343,10 @@ def new_employee():
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['DELETE']) #удаление сотрудника
+@jwt_required()
 def delete_employee(employee_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         #Находим сотрудника по ID
         employee = db.session.query(Employee).get(employee_id)
@@ -252,7 +391,10 @@ def delete_employee(employee_id):
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['GET']) #получение полной информации о сотруднике
+@jwt_required()
 def get_employee_info(employee_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         # Пытаемся найти сотрудника и сразу загрузить информацию о его роли
         employee = db.session.query(Employee).options(
@@ -286,7 +428,10 @@ def get_employee_info(employee_id):
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['PUT']) #изменение данных сотрудника
+@jwt_required()
 def update_employee_info(employee_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         employee = db.session.query(Employee).get(employee_id)
         if not employee:
@@ -442,7 +587,10 @@ def get_departments():
     
 
 @app.route('/api/departments', methods=['POST']) #создание нового отдела
+@jwt_required()
 def new_department():
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         data = request.get_json()
         if not data:
@@ -536,7 +684,10 @@ def new_department():
 
 
 @app.route('/api/departments/<int:department_id>', methods=['DELETE']) #удаление отдела
+@jwt_required()
 def delete_department(department_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         department = db.session.query(Department).get(department_id)
 
@@ -568,7 +719,10 @@ def delete_department(department_id):
 
 
 @app.route('/api/departments/<int:department_id>', methods=['GET']) #получение полной информации об отделе
+@jwt_required()
 def get_department_info(department_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         department = db.session.query(Department).options(
             joinedload(Department.responsible_employee).joinedload(Employee.role_obj), #Загружаем ответственного и его роль
@@ -605,7 +759,10 @@ def get_department_info(department_id):
 
 
 @app.route('/api/departments/<int:department_id>', methods=['PUT']) #изменение данных отдела
+@jwt_required()
 def update_department_info(department_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         department = db.session.query(Department).get(department_id)
         if not department:
@@ -719,7 +876,10 @@ def update_department_info(department_id):
 '''
 
 @app.route('/api/issues', methods=['GET']) #получение списка происшествий
+@jwt_required()
 def get_issues():
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         issues_query = db.session.query(Issue).options(
             joinedload(Issue.department),  
@@ -875,7 +1035,10 @@ def new_issue():
         
 
 @app.route('/api/issues/<int:issue_id>', methods=['PUT']) #изменение статуса инцидента
+@jwt_required()
 def update_issue_status(issue_id):
+    if not check_user_role([ADMIN_ROLE_ID]):
+        return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         issue = db.session.query(Issue).get(issue_id)
         if not issue:
