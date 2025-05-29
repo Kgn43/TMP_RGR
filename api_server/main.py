@@ -171,7 +171,7 @@ def login():
         
         return jsonify(access_token=access_token), 200
     else:
-        app.logger.warning(f"{log_prefix.replace('INFO', 'WARNING')} 401 - Unauthorized: Неверный логин или пароль для пользователя: {login}.")
+        app.logger.warning(f"{log_prefix.replace('INFO', 'WARNING')} 401 - Unauthorized: Неверный пароль для пользователя: {login}.")
         return jsonify({**ERROR_MESSAGES.get("UNAUTHORIZED", {}), "details": "Неверный логин или пароль."}), 401
     
 def check_user_role(required_roles_ids):
@@ -194,6 +194,10 @@ def check_user_role(required_roles_ids):
 @jwt_required()
 def get_employees():
     if not check_user_role([ADMIN_ROLE_ID]):
+        log_prefix = _prepare_log_prefix("WARNING")
+        app.logger.warning(
+            f"{log_prefix} 403 - Forbidden: Attempted to access admin-only employee list."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         
@@ -227,20 +231,24 @@ def get_employees():
         return jsonify(result_employees), 200
 
     except Exception as e:
-        app.logger.error(f"Error in get_employees: {str(e)}")
-        # print(f"Error in get_employees: {str(e)}")
+        app.logger.error(
+            f"{log_prefix} 500 - Exception in get_employees: {str(e)}")
         return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
     
 
 @app.route('/api/employees', methods=['POST']) #создание нового сотрудника
 @jwt_required()
 def new_employee():
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
-        app.logger.error(f"Error in get_employees: {str(e)}")
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only employee add."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         data = request.get_json()
         if not data:
+            app.logger.warning(f"{log_prefix} 400 - Bad Request: Тело запроса для создания сотрудника пустое.")
             return jsonify({
                 **ERROR_MESSAGES["BAD_REQUEST"],
                 "details": "Тело запроса не может быть пустым и должно содержать JSON."
@@ -258,6 +266,7 @@ def new_employee():
                 errors[field_key] = f"Поле '{field_name}' является обязательным и не может быть пустым."
         
         if errors:
+            app.logger.warning(f"{log_prefix} 422 - Validation Error: Отсутствуют обязательные поля: {list(errors.keys())}.")
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         name = str(data['name']).strip()
@@ -304,6 +313,7 @@ def new_employee():
             errors["role_id"] = "ID роли должен быть целым числом."
         
         if errors:
+            app.logger.warning(f"{log_prefix} 422 - Validation Error: Обнаружены ошибки в полях: {errors}.")
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
         
         hashed_password = generate_password_hash(passwd)
@@ -330,7 +340,10 @@ def new_employee():
 
     except IntegrityError as e:
         db.session.rollback()
-        print(f"IntegrityError in new_employee: {str(e.orig)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 409/500 - IntegrityError in new_employee: {str(e.orig)}", 
+            exc_info=True
+        )
         error_detail = str(e.orig).lower()
         if "employees_login_key" in error_detail or ("unique constraint" in error_detail and "login" in error_detail):
             return jsonify({**ERROR_MESSAGES["CONFLICT"], "errors": {"login": "Пользователь с таким логином уже существует (ошибка БД)."}}), 409
@@ -338,20 +351,30 @@ def new_employee():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error in new_employee: {str(e)}")
+        app.logger.error(
+            f"{log_prefix} 500 - Unhandled exception in new_employee: {str(e)}", 
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['DELETE']) #удаление сотрудника
 @jwt_required()
 def delete_employee(employee_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only employee deliting."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         #Находим сотрудника по ID
         employee = db.session.query(Employee).get(employee_id)
 
         if not employee:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Employee with ID {employee_id} not found for deletion."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
                 "details": f"Сотрудник с ID {employee_id} не найден для удаления."
@@ -360,6 +383,10 @@ def delete_employee(employee_id):
         #Перед удалением проверяем ответственнен ли сотрудник за отдел
         department_as_responsible = db.session.query(Department).filter_by(responsible_employee_id_fk=employee_id).first()
         if department_as_responsible:
+            app.logger.warning(
+                f"{log_prefix} 409 - Conflict (Deletion Restricted): Attempted to delete employee ID {employee_id} "
+                f"who is responsible for department ID {department_as_responsible.id} ('{department_as_responsible.name}')."
+            )
             return jsonify({
                 "error_code": "DELETION_RESTRICTED",
                 "message": "Нельзя удалить сотрудника, так как он является ответственным за отдел.",
@@ -375,8 +402,11 @@ def delete_employee(employee_id):
 
     except IntegrityError as e: # Если удаление нарушает какие-то ограничения внешних ключей
         db.session.rollback()
-        # app.logger.error(f"IntegrityError deleting employee ID {employee_id}: {str(e.orig)}")
-        print(f"IntegrityError deleting employee ID {employee_id}: {str(e.orig)}")
+        log_prefix_error = _prepare_log_prefix("ERROR")
+        app.logger.error(
+            f"{log_prefix_error} 409 - IntegrityError deleting employee ID {employee_id}: {str(e.orig)}",
+            exc_info=True
+        )
         
         return jsonify({
             **ERROR_MESSAGES.get("CONFLICT", {"error_code": "CONFLICT", "message": "Конфликт данных."}),
@@ -385,15 +415,21 @@ def delete_employee(employee_id):
 
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error deleting employee ID {employee_id}: {str(e)}")
-        print(f"Error deleting employee ID {employee_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix_error} 500 - Unhandled exception deleting employee ID {employee_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['GET']) #получение полной информации о сотруднике
 @jwt_required()
 def get_employee_info(employee_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only employee detail."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         # Пытаемся найти сотрудника и сразу загрузить информацию о его роли
@@ -402,6 +438,9 @@ def get_employee_info(employee_id):
         ).get(employee_id)
 
         if not employee:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Employee with ID {employee_id} not found."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}), 
                 "details": f"Сотрудник с ID {employee_id} не найден."
@@ -422,19 +461,28 @@ def get_employee_info(employee_id):
         return jsonify(employee_data), 200
 
     except Exception as e:
-        ############################## app.logger.error(f"Error in get_employee_info for ID {employee_id}: {str(e)}")
-        print(f"Error in get_employee_info for ID {employee_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Exception in get_employee_info for ID {employee_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['PUT']) #изменение данных сотрудника
 @jwt_required()
 def update_employee_info(employee_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only employee edit."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         employee = db.session.query(Employee).get(employee_id)
         if not employee:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Employee with ID {employee_id} not found for update."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
                 "details": f"Сотрудник с ID {employee_id} не найден."
@@ -442,6 +490,9 @@ def update_employee_info(employee_id):
 
         data = request.get_json()
         if not data:
+            app.logger.warning(
+                f"{log_prefix} 400 - Bad Request: Request body пустое для обновления сотрудника ID {employee_id}."
+            )
             return jsonify({
                 **ERROR_MESSAGES["BAD_REQUEST"],
                 "details": "Тело запроса не может быть пустым и должно содержать JSON данные для обновления."
@@ -464,6 +515,10 @@ def update_employee_info(employee_id):
         # Для простоты, мы их просто проигнорируем, если они есть в data.
 
         if errors:
+            app.logger.warning(
+                f"{log_prefix} 422 - Validation Error (Update Employee ID {employee_id}): "
+                f"Отсутствуют обязательные поля: {list(errors.keys())}."
+            )
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         # Извлечение данных (только изменяемых полей)
@@ -511,14 +566,16 @@ def update_employee_info(employee_id):
             errors["role_id"] = "ID роли должен быть целым числом."
         
         if errors:
+            app.logger.warning(
+                f"{log_prefix} 422 - Validation Error (Update Employee ID {employee_id}): "
+                f"Обнаружены ошибки в полях: {errors}."
+            )
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         db.session.commit()
 
         db.session.refresh(employee)
         db.session.expire(employee, ['role_obj']) # Говорит SQLAlchemy, что 'role_obj' нужно перезагрузить при следующем доступе
-                                               # или используем joinedload при перезапросе:
-        # updated_employee = db.session.query(Employee).options(joinedload(Employee.role_obj)).get(employee_id)
 
 
         employee_data = {
@@ -536,8 +593,10 @@ def update_employee_info(employee_id):
         
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error updating employee ID {employee_id}: {str(e)}")
-        print(f"Error updating employee ID {employee_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Exception in update_employee_info for ID {employee_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
@@ -579,21 +638,27 @@ def get_departments():
         
         return jsonify(result_departments), 200
     except Exception as e:
-        # В реальном приложении используйте app.logger.error(f"Error in get_departments: {str(e)}")
-        print(f"Error in get_departments: {str(e)}") # Для отладки
-        # Возвращаем стандартизированное сообщение об ошибке
-        # Убедитесь, что ERROR_MESSAGES определены глобально
+        log_prefix = _prepare_log_prefix("ERROR")
+        app.logger.error(
+            f"{log_prefix} 500 - Exception in get_departments: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
     
 
 @app.route('/api/departments', methods=['POST']) #создание нового отдела
 @jwt_required()
 def new_department():
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only departments add."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         data = request.get_json()
         if not data:
+            app.logger.warning(f"{log_prefix} 400 - Bad Request: Тело запроса для создания отдела пустое.")
             return jsonify({
                 **ERROR_MESSAGES["BAD_REQUEST"],
                 "details": "Тело запроса не может быть пустым и должно содержать JSON."
@@ -619,6 +684,7 @@ def new_department():
 
 
         if errors:
+            app.logger.warning(f"{log_prefix} 422 - Validation Error: Отсутствуют обязательные поля: {list(errors.keys())}.")
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         name = str(data['name']).strip()
@@ -648,6 +714,7 @@ def new_department():
             errors["responsible_employee_id"] = "ID ответственного сотрудника должен быть целым числом."
         
         if errors:
+            app.logger.warning(f"{log_prefix} 422 - Validation Error: Обнаружены ошибки в полях: {errors}.")
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         #Создание нового отдела
@@ -678,20 +745,29 @@ def new_department():
         
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error in new_department: {str(e)}")
-        print(f"Error in new_department: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Exception in new_department: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
 
 
 @app.route('/api/departments/<int:department_id>', methods=['DELETE']) #удаление отдела
 @jwt_required()
 def delete_department(department_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only departments del."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         department = db.session.query(Department).get(department_id)
 
         if not department:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Department with ID {department_id} not found for deletion."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
                 "details": f"Отдел с ID {department_id} не найден для удаления."
@@ -700,6 +776,10 @@ def delete_department(department_id):
         #Проверка, есть ли связанные происшествия
         related_issue = db.session.query(Issue).filter_by(department_id_fk=department_id).first()
         if related_issue:
+            app.logger.warning(
+                f"{log_prefix} 409 - Conflict (Deletion Restricted): Attempted to delete department ID {department_id} "
+                f"which is linked to issue ID {related_issue.id}."
+            )
             return jsonify({
                 "error_code": "DELETION_RESTRICTED",
                 "message": "Нельзя удалить отдел, так как с ним связаны происшествия.",
@@ -713,15 +793,21 @@ def delete_department(department_id):
 
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error deleting department ID {department_id}: {str(e)}")
-        print(f"Error deleting department ID {department_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Unhandled exception deleting department ID {department_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/departments/<int:department_id>', methods=['GET']) #получение полной информации об отделе
 @jwt_required()
 def get_department_info(department_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only departments ditails."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         department = db.session.query(Department).options(
@@ -729,6 +815,9 @@ def get_department_info(department_id):
         ).get(department_id)
 
         if not department:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Department with ID {department_id} not found."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}), 
                 "details": f"Отдел с ID {department_id} не найден."
@@ -753,19 +842,28 @@ def get_department_info(department_id):
         return jsonify(department_data), 200
 
     except Exception as e:
-        # app.logger.error(f"Error in get_department_info for ID {department_id}: {str(e)}")
-        print(f"Error in get_department_info for ID {department_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Exception in get_department_info for ID {department_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/departments/<int:department_id>', methods=['PUT']) #изменение данных отдела
 @jwt_required()
 def update_department_info(department_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only departments update."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         department = db.session.query(Department).get(department_id)
         if not department:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Department with ID {department_id} not found for update."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
                 "details": f"Отдел с ID {department_id} не найден."
@@ -773,6 +871,9 @@ def update_department_info(department_id):
 
         data = request.get_json()
         if not data:
+            app.logger.warning(
+                f"{log_prefix} 400 - Bad Request: Request body пустое для обновления отдела ID {department_id}."
+            )
             return jsonify({
                 **ERROR_MESSAGES["BAD_REQUEST"],
                 "details": "Тело запроса не может быть пустым и должно содержать JSON данные для обновления."
@@ -798,6 +899,10 @@ def update_department_info(department_id):
 
 
         if errors:
+            app.logger.warning(
+                f"{log_prefix} 422 - Validation Error (Update Department ID {department_id}): "
+                f"Отсутствуют обязательные поля: {list(errors.keys())}."
+            )
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         
@@ -834,6 +939,10 @@ def update_department_info(department_id):
             errors["responsible_employee_id"] = "ID ответственного сотрудника должен быть целым числом."
         
         if errors:
+            app.logger.warning(
+                f"{log_prefix} 422 - Validation Error (Update Department ID {department_id}): "
+                f"Обнаружены ошибки в полях: {errors}."
+            )
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         db.session.commit()
@@ -864,8 +973,10 @@ def update_department_info(department_id):
         
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error updating department ID {department_id}: {str(e)}")
-        print(f"Error updating department ID {department_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Unhandled exception updating department ID {department_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
@@ -878,7 +989,11 @@ def update_department_info(department_id):
 @app.route('/api/issues', methods=['GET']) #получение списка происшествий
 @jwt_required()
 def get_issues():
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only issues get."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         issues_query = db.session.query(Issue).options(
@@ -914,16 +1029,20 @@ def get_issues():
         return jsonify(result_issues), 200
 
     except Exception as e:
-        # В реальном приложении используйте app.logger.error(f"Error in get_issues: {str(e)}")
-        print(f"Error in get_issues: {str(e)}") # Для отладки
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Exception in get_issues: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
 @app.route('/api/issues', methods=['POST']) #регистрация инцидента
 def new_issue():
     try:
+        log_prefix = _prepare_log_prefix("WARNING")
         data = request.get_json()
         if not data:
+            app.logger.warning(f"{log_prefix} 400 - Bad Request: Тело запроса для регистрации происшествия пустое.")
             return jsonify({
                 **ERROR_MESSAGES["BAD_REQUEST"],
                 "details": "Тело запроса не может быть пустым и должно содержать JSON."
@@ -942,6 +1061,7 @@ def new_issue():
                 errors[field_key] = f"Поле '{field_name}' является обязательным и не может быть пустым."
         
         if errors:
+            app.logger.warning(f"{log_prefix} 422 - Validation Error: Отсутствуют обязательные поля: {list(errors.keys())}.")
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         department_id_str = str(data['department_id']).strip()
@@ -969,6 +1089,7 @@ def new_issue():
         status_obj = db.session.query(Status).get(default_status_id)
 
         if errors:
+            app.logger.warning(f"{log_prefix} 422 - Validation Error: Обнаружены ошибки в полях: {errors}.")
             return jsonify({**ERROR_MESSAGES["VALIDATION_ERROR"], "errors": errors}), 422
 
         
@@ -987,6 +1108,7 @@ def new_issue():
         if department_obj and department_obj.responsible_employee and department_obj.responsible_employee.telegram_id:
             responsible_employee = department_obj.responsible_employee
             
+            #СТРОКА 1111
             notification_message = (
                 f"Новое происшествие ID: {new_issue_obj.id}\n"
                 f"Отдел: {department_obj.name} (Этаж {department_obj.floor})\n"
@@ -1006,11 +1128,15 @@ def new_issue():
                 if response.status_code == 200:
                     notification_sent = True
                 else:
-                    # Логируем ошибку от бота, но не прерываем основной процесс
-                    print(f"Ошибка отправки уведомления боту: {response.status_code} - {response.text}")
+                    app.logger.error(
+                        f"{_prepare_log_prefix('ERROR')} 500 - Error sending Telegram notification for issue ID {new_issue_obj.id}: "
+                        f"Bot responded with {response.status_code} - {response.text}"
+                    )
             except requests.exceptions.RequestException as e_req:
                 # Логируем ошибку сети/подключения к боту
-                print(f"Ошибка сети при отправке уведомления боту: {e_req}")
+                app.logger.error(
+                    f"{_prepare_log_prefix('ERROR')} 500 - Network error sending Telegram notification for issue ID {new_issue_obj.id}: {e_req}"
+                )
         
         # 5. Формирование успешного ответа
         created_issue_data = {
@@ -1029,19 +1155,28 @@ def new_issue():
         
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error in new_issue: {str(e)}")
-        print(f"Error in new_issue: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Unhandled exception in new_issue: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES["INTERNAL_SERVER_ERROR"]), 500
         
 
 @app.route('/api/issues/<int:issue_id>', methods=['PUT']) #изменение статуса инцидента
 @jwt_required()
 def update_issue_status(issue_id):
+    log_prefix = _prepare_log_prefix("WARNING")
     if not check_user_role([ADMIN_ROLE_ID]):
+        app.logger.warning(
+        f"{log_prefix} 403 - Forbidden: Attempted to access admin-only issues upd."
+        )
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         issue = db.session.query(Issue).get(issue_id)
         if not issue:
+            app.logger.warning(
+                f"{log_prefix} 404 - Not Found: Issue with ID {issue_id} not found for status update."
+            )
             return jsonify({
                 **ERROR_MESSAGES.get("NOT_FOUND", {"error_code": "NOT_FOUND", "message": "Ресурс не найден."}),
                 "details": f"Происшествие с ID {issue_id} не найдено."
@@ -1049,6 +1184,9 @@ def update_issue_status(issue_id):
 
         data = request.get_json()
         if not data:
+            app.logger.warning(
+                f"{log_prefix} 400 - Bad Request: Request body пустое для обновления статуса issue ID {issue_id}."
+            )
             return jsonify({
                 **ERROR_MESSAGES["BAD_REQUEST"],
                 "details": "Тело запроса не может быть пустым и должно содержать JSON."
@@ -1088,8 +1226,10 @@ def update_issue_status(issue_id):
         
     except Exception as e:
         db.session.rollback()
-        # app.logger.error(f"Error updating status for issue ID {issue_id}: {str(e)}")
-        print(f"Error updating status for issue ID {issue_id}: {str(e)}")
+        app.logger.error(
+            f"{log_prefix.replace('WARNING','ERROR')} 500 - Unhandled exception updating status for issue ID {issue_id}: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
@@ -1116,8 +1256,11 @@ def get_statuses():
         return jsonify(result_statuses), 200
 
     except Exception as e:
-        # app.logger.error(f"Error in get_statuses: {str(e)}")
-        print(f"Error in get_statuses: {str(e)}")
+        log_prefix = _prepare_log_prefix("ERROR")
+        app.logger.error(
+            f"{log_prefix} 500 - Unhandled exception in get_statuses: {str(e)}",
+            exc_info=True
+        )
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
