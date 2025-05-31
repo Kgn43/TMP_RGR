@@ -1,0 +1,131 @@
+.employee-form-page-container {
+    padding: 20px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', /* ... */ sans-serif;
+    display: flex; /* Для центрирования формы, если она не на всю ширину */
+    justify-content: center;
+    align-items: flex-start; /* Выравнивание по верху, если форма длинная */
+    min-height: 80vh;
+}
+
+.employee-form-container {
+    background-color: #fff;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 600px; /* Можно сделать форму пошире */
+    margin-top: 20px; /* Небольшой отступ сверху */
+}
+
+.employee-form-container h1 {
+    color: #333;
+    margin-bottom: 25px;
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 15px; /* Уменьшим немного отступы */
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    color: #555;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group select { /* Добавляем select */
+    width: 100%;
+    padding: 10px 12px; /* Немного уменьшим padding */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 15px; /* Немного уменьшим шрифт */
+    transition: border-color 0.2s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus,
+.form-group select:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+.form-group input.input-error,
+.form-group select.input-error {
+    border-color: #d9534f;
+    background-color: #fdd;
+}
+
+.field-error-message {
+    color: #d9534f;
+    font-size: 0.8em;
+    margin-top: 4px;
+    text-align: left;
+}
+
+.error-message.global-form-error { /* Для общей ошибки формы */
+    color: #d9534f;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    margin: 15px 0;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.form-actions {
+    margin-top: 25px;
+    display: flex;
+    justify-content: space-between; /* Располагаем кнопки по краям */
+    gap: 15px; /* Пространство между кнопками */
+}
+
+.form-button {
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    flex-grow: 1; /* Чтобы кнопки занимали доступное пространство, если их две */
+    text-align: center;
+}
+
+.submit-button {
+    background-color: #28a745; /* Зеленый */
+    color: white;
+    text-transform: uppercase;
+}
+.submit-button:hover:not(:disabled) {
+    background-color: #218838;
+}
+.submit-button:disabled {
+    background-color: #a3d8b0;
+    cursor: not-allowed;
+}
+
+.cancel-button {
+    background-color: #e0e0e0; /* Серый */
+    color: #333;
+    text-decoration: none; /* Для Link */
+}
+.cancel-button:hover {
+    background-color: #d0d0d0;
+}
+
+.form-group input.readonly-input,
+.form-group input[readonly] {
+    background-color: #f8f9fa; /* Слегка другой фон для нередактируемых */
+    color: #495057;
+    cursor: not-allowed;
+    border-color: #ced4da;
+}

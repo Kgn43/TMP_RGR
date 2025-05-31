@@ -1,5 +1,5 @@
 networks:
-  my_net_lr_3:
+  my_net_lr_4:
 
 volumes:
   db_volume:
@@ -11,13 +11,13 @@ services:
     build:
       context: DB
     container_name:
-      db_postgres_lr_3
-    ports:
-     - "54322:5432" # DElete ThiS
+      db_postgres_lr_4
+    # ports:
+    #  - "54322:5432" # DElete ThiS
     volumes:
       - db_volume:/home/
     networks:
-      - my_net_lr_3
+      - my_net_lr_4
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root"]
@@ -26,17 +26,17 @@ services:
       retries: 3
       start_period: 5s
 
-  # api:
-  #   build:
-  #     context: api_server  
-  #   container_name: api_lr_3
-  #   ports:
-  #     - "15000:15000"
-  #   networks:
-  #     - my_net_lr_3
-  #   restart: always
-  #   depends_on:
-  #     - db
+  api:
+    build:
+      context: api_server  
+    container_name: api_lr_4
+    ports:
+      - "15000:15000"
+    networks:
+      - my_net_lr_4
+    restart: always
+    depends_on:
+      - db
 
   
 #   bot:
@@ -57,7 +57,7 @@ services:
   #     context: pgAdmin  
   #   container_name: pgadmin_lr_3
   #   ports:
-  #     - "8888:80"
+  #     - "8899:80"
   #   networks:
   #     - my_net_lr_3
   #   restart: always

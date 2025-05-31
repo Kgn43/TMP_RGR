@@ -1,0 +1,191 @@
+.employees-page-container {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', /* ...и т.д. */ sans-serif;
+}
+
+.employees-page-container h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 25px;
+}
+
+.controls-container {
+    display: flex;
+    justify-content: space-between; /* Размещаем фильтр и кнопку по краям */
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.role-filter {
+    display: flex;
+    align-items: center;
+}
+
+.role-filter label {
+    margin-right: 10px;
+    font-weight: 500;
+    color: #555;
+}
+
+.role-filter select {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 14px;
+    min-width: 150px; /* Минимальная ширина для селекта */
+}
+
+.add-employee-button { /* Стиль для кнопки добавления, если она будет */
+    padding: 8px 15px;
+    background-color: #28a745; /* Зеленый */
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.add-employee-button:hover {
+    background-color: #218838;
+}
+
+.employee-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+.employee-list-item {
+    padding: 12px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex; /* Для выравнивания ссылки и роли */
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.1s ease;
+}
+
+.employee-list-item:last-child {
+    border-bottom: none;
+}
+
+.employee-list-item:hover {
+    background-color: #f9f9f9;
+}
+
+.employee-link {
+    text-decoration: none;
+    color: #007bff; /* Синий цвет для ссылок */
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.employee-link:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+.employee-role {
+    font-size: 0.9em;
+    color: #777;
+    margin-left: 10px;
+}
+
+.loading-message,
+.error-message-page,
+.no-employees-message {
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 1.1em;
+    color: #555;
+}
+
+.error-message-page {
+    color: #d9534f; /* Красный для ошибок */
+}
+
+.action-button { /* Общий стиль для кнопок действий */
+    padding: 8px 15px;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    border: none; /* Если это <button>, убираем рамку по умолчанию */
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-block; /* Для корректного применения padding/margin */
+}
+
+.add-employee-button {
+    background-color: #28a745; /* Зеленый цвет для добавления */
+}
+
+.add-employee-button:hover {
+    background-color: #218838; /* Темнее зеленый при наведении */
+}
+
+/* Обновляем .controls-container, чтобы кнопка была справа */
+.controls-container {
+    display: flex;
+    justify-content: space-between; /* Размещаем фильтр слева, кнопку справа */
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.employee-list-item {
+    padding: 12px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between; /* Чтобы инфо и кнопка были по краям */
+    align-items: center;
+    transition: background-color 0.1s ease;
+}
+
+.employee-info {
+    /* Занимает доступное пространство, отодвигая кнопку вправо */
+    flex-grow: 1; 
+}
+
+.delete-button {
+    background-color: transparent;
+    border: none;
+    color: #dc3545; /* Красный цвет для удаления */
+    font-size: 1.2em; /* Размер крестика */
+    cursor: pointer;
+    padding: 5px;
+    line-height: 1;
+    border-radius: 4px; /* Опционально, для области клика */
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.delete-button:hover {
+    color: #a71d2a; /* Темнее красный при наведении */
+    background-color: #f8f9fa; /* Легкий фон при наведении */
+}
+
+.error-message-inline { /* Стиль для ошибок действий, отображаемых внутри страницы */
+    color: #d9534f;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Обновление no-employees-message для большей ясности, если есть ошибка загрузки */
+.no-employees-message {
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 1.1em;
+    color: #555;
+}

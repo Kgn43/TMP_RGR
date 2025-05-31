@@ -1,0 +1,123 @@
+.login-page-container {
+    /* display: flex; 
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; 
+    min-height: 80vh;  */
+    box-sizing: border-box;
+}
+
+.login-form-container {
+    background-color: #fff; /* Белый фон для формы */
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Тень как у ваших дропдаунов */
+    width: 100%;
+    max-width: 400px;
+    margin: 40px auto;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ccc; /* Граница как у дропдаунов */
+    border-radius: 4px; /* Небольшое скругление */
+    box-sizing: border-box;
+    font-size: 16px;
+    transition: border-color 0.2s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus {
+    border-color: #007bff; /* Подсветка при фокусе (можно подобрать другой цвет) */
+    outline: none;
+}
+
+.login-button {
+    background-color: #e0e0e0; /* Серый цвет кнопки, как "ТРЕВОГА!" */
+    color: #333; /* Темный текст на кнопке */
+    border: none;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%; /* Кнопка на всю ширину формы */
+    text-transform: uppercase; /* Как "ТРЕВОГА!" */
+}
+
+.login-button:hover:not(:disabled) {
+    background-color: #d0d0d0; /* Чуть темнее при наведении */
+}
+
+.login-button:disabled {
+    background-color: #f0f0f0; /* Светлее, когда неактивна */
+    color: #aaa;
+    cursor: not-allowed;
+}
+
+.error-message {
+    color: #d9534f; /* Красный цвет для ошибок */
+    margin-bottom: 15px;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* Адаптация placeholder'а как на вашей домашней странице (если нужно) */
+.form-group input::placeholder {
+    color: #aaa;
+    opacity: 1; /* Firefox */
+}
+.form-group input:-ms-input-placeholder { /* Internet Explorer 10-11 */
+   color: #aaa;
+}
+.form-group input::-ms-input-placeholder { /* Microsoft Edge */
+   color: #aaa;
+}
+
+.form-group input.input-error {
+    border-color: #d9534f; /* Красная рамка для поля с ошибкой */
+    background-color: #fdd; /* Легкий красный фон (опционально) */
+}
+
+.form-group input.input-error:focus {
+    border-color: #b92c28; /* Более темная красная рамка при фокусе на ошибочном поле */
+    box-shadow: 0 0 0 0.2rem rgba(217, 83, 79, 0.25); /* Тень при фокусе (опционально) */
+}
+
+.field-error-message {
+    color: #d9534f;
+    font-size: 0.875em; /* Чуть меньше основного текста */
+    margin-top: 5px;
+    margin-bottom: 0; /* Убираем нижний отступ, если он не нужен */
+    text-align: left;
+}
+
+/* Общая ошибка (может немного отличаться от field-error-message, если нужно) */
+.error-message {
+    color: #d9534f;
+    margin-top: 10px; /* Отступ сверху, если ошибки полей уже показаны */
+    margin-bottom: 15px;
+    font-size: 14px;
+    text-align: center;
+    background-color: #f8d7da; /* Легкий фон для блока общей ошибки */
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    border-radius: 4px;
+}

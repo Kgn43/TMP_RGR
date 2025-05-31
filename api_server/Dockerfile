@@ -11,6 +11,7 @@ RUN pip install \
     requests==2.32.3 \
     werkzeug==3.1.3 \
     Flask-JWT-Extended \
+    Flask-CORS \
     && pip cache purge
 
 CMD ["python", "-u", "main.py"]

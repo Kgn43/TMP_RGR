@@ -1,0 +1,68 @@
+.app-navigation {
+    background-color: #f8f9fa;
+    padding: 10px 15px; /* Немного уменьшим боковые отступы */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.nav-list {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap; /* Разрешаем перенос по умолчанию */
+    gap: 10px; /* Задает расстояние и по горизонтали, и по вертикали между элементами */
+              /* Убирает необходимость в margin-right/margin-bottom на .nav-item, если поддерживается браузером */
+    /* Если gap не поддерживается, используйте margin на .nav-item */
+    /* justify-content: flex-start; */
+    align-items: center;
+}
+
+
+.nav-link {
+    display: inline-block; 
+    padding: 8px 15px; 
+    text-decoration: none;
+    color: #333; 
+    background-color: #e9ecef; 
+    border: 1px solid #ced4da; 
+    border-radius: 4px; 
+    white-space: nowrap;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: center; /* Центрируем текст внутри кнопки */
+}
+
+.nav-link:hover,
+.nav-link:focus {
+    background-color: #dee2e6;
+    border-color: #adb5bd;
+    color: #000;
+    outline: none;
+}
+
+.logout-button-styled {
+    font-family: inherit; 
+}
+
+
+/* Адаптация для меньших экранов */
+@media (max-width: 768px) {
+    .nav-list {
+        justify-content: center; /* Центрируем кнопки, если они переносятся */
+    }
+    /* Можно не менять размеры, если перенос устраивает */
+}
+
+@media (max-width: 480px) {
+    .nav-link {
+        padding: 6px 10px; /* Уменьшаем кнопки */
+        font-size: 13px;
+    }
+    .nav-list {
+        gap: 8px; /* Уменьшаем расстояние между кнопками */
+        /* Если не используется gap: */
+        /* .nav-item { margin-right: 8px; margin-bottom: 8px; } */
+    }
+}

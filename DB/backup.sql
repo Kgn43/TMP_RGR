@@ -294,9 +294,9 @@ INSERT INTO public.departments (id, "Name", "Floor", "Responsible_employee_id") 
 -- Data for Name: employees; Type: TABLE DATA; Schema: public; Owner: root
 --
 
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (1, 'Фёдор', 'Мокрецов', 1, '89635749737', '1169347875', 'kgn', '1234');
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (2, 'Данил', 'Пономаренко', 2, '89236589058', '1169347875', 'era', 'qwerty');
-INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (3, 'Илья', 'Дорош', 2, '89132131991', '1169347875', 'onlylucky', 'q1w2e3r4');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (1, 'Фёдор', 'Мокрецов', 1, '89635749737', '1169347875', 'kgn', 'scrypt:32768:8:1$y9VMSmQYhRt9PSOh$a1b5fb611649d0c89c07044dd9c14bdedd0c542a85cf173d59a4de789fcc29c549b19a87025c363d1ed53323d13e505b4d4ad13c5a1dce0995b34908602d576a');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (2, 'Данил', 'Пономаренко', 2, '89236589058', '1169347875', 'era', 'scrypt:32768:8:1$y9VMSmQYhRt9PSOh$a1b5fb611649d0c89c07044dd9c14bdedd0c542a85cf173d59a4de789fcc29c549b19a87025c363d1ed53323d13e505b4d4ad13c5a1dce0995b34908602d576a');
+INSERT INTO public.employees (id, "Name", "Surname", "Role", "Phone_number", "Telegram_id", "Login", "Passwd") VALUES (3, 'Илья', 'Дорош', 2, '89132131991', '1169347875', 'onlylucky', 'scrypt:32768:8:1$y9VMSmQYhRt9PSOh$a1b5fb611649d0c89c07044dd9c14bdedd0c542a85cf173d59a4de789fcc29c549b19a87025c363d1ed53323d13e505b4d4ad13c5a1dce0995b34908602d576a');
 
 
 --

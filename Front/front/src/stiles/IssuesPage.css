@@ -1,0 +1,300 @@
+.employee-form-page-container {
+    padding: 20px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', /* ... */ sans-serif;
+    display: flex; /* Для центрирования формы, если она не на всю ширину */
+    justify-content: center;
+    align-items: flex-start; /* Выравнивание по верху, если форма длинная */
+    min-height: 80vh;
+}
+
+.employee-form-container {
+    background-color: #fff;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 600px; /* Можно сделать форму пошире */
+    margin-top: 20px; /* Небольшой отступ сверху */
+}
+
+.employee-form-container h1 {
+    color: #333;
+    margin-bottom: 25px;
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 15px; /* Уменьшим немного отступы */
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    color: #555;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group select { /* Добавляем select */
+    width: 100%;
+    padding: 10px 12px; /* Немного уменьшим padding */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 15px; /* Немного уменьшим шрифт */
+    transition: border-color 0.2s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus,
+.form-group select:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+.form-group input.input-error,
+.form-group select.input-error {
+    border-color: #d9534f;
+    background-color: #fdd;
+}
+
+.field-error-message {
+    color: #d9534f;
+    font-size: 0.8em;
+    margin-top: 4px;
+    text-align: left;
+}
+
+.error-message.global-form-error { /* Для общей ошибки формы */
+    color: #d9534f;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    margin: 15px 0;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.form-actions {
+    margin-top: 25px;
+    display: flex;
+    justify-content: space-between; /* Располагаем кнопки по краям */
+    gap: 15px; /* Пространство между кнопками */
+}
+
+.form-button {
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    flex-grow: 1; /* Чтобы кнопки занимали доступное пространство, если их две */
+    text-align: center;
+}
+
+.submit-button {
+    background-color: #28a745; /* Зеленый */
+    color: white;
+    text-transform: uppercase;
+}
+.submit-button:hover:not(:disabled) {
+    background-color: #218838;
+}
+.submit-button:disabled {
+    background-color: #a3d8b0;
+    cursor: not-allowed;
+}
+
+.cancel-button {
+    background-color: #e0e0e0; /* Серый */
+    color: #333;
+    text-decoration: none; /* Для Link */
+}
+.cancel-button:hover {
+    background-color: #d0d0d0;
+}
+
+.form-group input.readonly-input,
+.form-group input[readonly] {
+    background-color: #f8f9fa; /* Слегка другой фон для нередактируемых */
+    color: #495057;
+    cursor: not-allowed;
+    border-color: #ced4da;
+}
+
+.resource-info.issue-info {
+    display: flex;
+    flex-direction: column; /* Располагаем информацию о происшествии в столбец */
+    align-items: flex-start; /* Выравниваем по левому краю */
+    gap: 5px; /* Небольшой отступ между деталями */
+    flex-grow: 1;
+}
+
+.issue-id {
+    font-weight: bold;
+    color: #333;
+}
+
+.issue-description {
+    color: #17a2b8; /* Например, бирюзовый для описания */
+    font-weight: 500;
+    display: block; /* Чтобы title работал и для длинных описаний */
+    max-width: 400px; /* Ограничиваем ширину описания */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.resource-list-item .resource-detail { /* Общий стиль для деталей, уже может быть */
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.issue-actions {
+    display: flex;
+    flex-direction: column; /* Кнопки действий в столбец, если их несколько */
+    gap: 5px; /* Отступ между кнопками */
+    align-items: flex-end; /* Прижимаем к правому краю */
+    margin-left: 15px; /* Отступ от информации о происшествии */
+}
+
+/* Специфичные стили для кнопок статусов */
+.process-button {
+    background-color: #ffc107; /* Желтый */
+    color: #212529;
+}
+.process-button:hover {
+    background-color: #e0a800;
+}
+
+.resolve-button {
+    background-color: #28a745; /* Зеленый */
+    color: white;
+}
+.resolve-button:hover {
+    background-color: #218838;
+}
+
+/* Стили для элементов списка происшествий */
+.resource-list-item.issue-entry { /* Добавляем специфичности, если нужно */
+    align-items: flex-start; /* Выравниваем по верху, если контент разной высоты */
+}
+
+.issue-info-details { /* Контейнер для основной информации */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    flex-grow: 1;
+    margin-right: 15px; /* Отступ от кнопок/текста действий */
+}
+
+.issue-main-info { /* Для ID и статуса в одну строку */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%; /* Чтобы статус-бейдж не влиял на ширину ID */
+}
+
+.issue-id {
+    font-weight: bold;
+    color: #333;
+    font-size: 0.9em;
+}
+
+.issue-description {
+    color: #333; /* Основной цвет для описания */
+    font-weight: 500;
+    font-size: 1em;
+    line-height: 1.4;
+    /* Убираем ограничение по ширине и обрезку отсюда, пусть занимает сколько нужно */
+    /* max-width: 400px; */
+    /* white-space: nowrap; */
+    /* overflow: hidden; */
+    /* text-overflow: ellipsis; */
+}
+
+.resource-list-page-container.issues-page .resource-detail { /* Уточняем селектор, если нужно */
+    font-size: 0.85em;
+    color: #555;
+}
+
+/* --- Стили для цветных прямоугольников статуса --- */
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px; /* Размер прямоугольника */
+    border-radius: 12px; /* Скругленные края для "пилюли" */
+    font-size: 0.8em;
+    font-weight: bold;
+    color: white; /* Белый текст по умолчанию */
+    text-align: center;
+    white-space: nowrap;
+    margin-left: auto; /* Прижимаем бейдж статуса вправо внутри .issue-main-info */
+}
+
+.status-open {
+    background-color: #c45560; /* Красный для "Открыто" */
+}
+
+.status-in-progress {
+    background-color: #ffc107; /* Желтый для "В обработке" */
+    color: #212529; /* Темный текст для желтого фона */
+}
+
+.status-resolved {
+    background-color: #51a564; /* Зеленый для "Разрешено" */
+}
+
+.status-unknown {
+    background-color: #6c757d; /* Серый для неизвестных статусов */
+}
+
+
+/* --- Стили для текстовых действий --- */
+.issue-actions-text {
+    display: flex;
+    flex-direction: column; /* Или row, если хотите их в строку */
+    align-items: flex-end;  /* Прижимаем к правому краю */
+    gap: 8px;
+    margin-left: 15px; 
+    min-width: 180px; /* Задаем минимальную ширину, чтобы кнопки не были слишком узкими */
+    text-align: right
+}
+
+.status-action-button {
+    display: inline-block;
+    padding: 6px 12px; /* Подберите подходящие отступы */
+    font-size: 0.9em;  /* Размер шрифта */
+    font-weight: 500;
+    color: #333;       /* Цвет текста */
+    background-color: #e9ecef; /* Нейтральный серый фон, как у ссылок в навигации */
+    border: 1px solid #ced4da; /* Нейтральная серая рамка */
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap; /* Текст в одну строку */
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    width: 100%; /* Чтобы кнопки занимали всю ширину контейнера .issue-actions */
+    box-sizing: border-box;
+}
+
+.status-action-button:hover {
+    background-color: #dee2e6; /* Чуть темнее при наведении */
+    border-color: #adb5bd;
+    color: #000;
+}
+
+.status-action-button:disabled { /* Если будете добавлять disabled состояние */
+    background-color: #f8f9fa;
+    color: #adb5bd;
+    cursor: not-allowed;
+    border-color: #e9ecef;
+}

@@ -16,12 +16,18 @@ from flask_jwt_extended import (
 from datetime import timedelta
 
 import logging
+import warnings
+from sqlalchemy import exc as sa_exc
+warnings.filterwarnings("ignore", category=sa_exc.LegacyAPIWarning)
+
+from flask_cors import CORS
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+CORS(app) 
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@127.0.0.1:54322/root'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@db:5432/root'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 app.config["JWT_SECRET_KEY"] = "aboba_aboba_aboba_aboba"
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) 
@@ -205,9 +211,8 @@ def get_employees():
             Employee.id,
             Employee.name,
             Employee.surname,
-            Employee.phone_number,
-            Employee.telegram_id,
             Employee.login,
+            Employee.role_id,
             Role.role_name
         ).join(Role, Employee.role_id == Role.id).all()
 
@@ -222,8 +227,7 @@ def get_employees():
                 "name": emp_data.name,
                 "surname": emp_data.surname,
                 "role": emp_data.role_name,
-                "phone_number": emp_data.phone_number,
-                "telegram_id": emp_data.telegram_id,
+                "role_id": emp_data.role_id,
                 "login": emp_data.login
             }
             result_employees.append(employee_dict)
@@ -997,18 +1001,28 @@ def get_issues():
         return jsonify({**ERROR_MESSAGES.get("FORBIDDEN", {}), "details": "Доступ запрещен."}), 403
     try:
         issues_query = db.session.query(Issue).options(
-            joinedload(Issue.department),  
-            joinedload(Issue.status_obj)   
-        ).order_by(Issue.created_at.desc()).all() #сначала новые
+            joinedload(Issue.status_obj), # Статус происшествия
+            joinedload(Issue.department)  # Отдел, к которому относится происшествие
+                .joinedload(Department.responsible_employee) # Ответственный сотрудник этого отдела
+        ).order_by(Issue.created_at.desc()).all()
 
         result_issues = []
         for issue in issues_query:
             department_info = None
+            responsible_employee_info = None
             if issue.department:
                 department_info = {
                     "id": issue.department.id,
                     "name": issue.department.name
                 }
+                if issue.department.responsible_employee:
+                    responsible_employee = issue.department.responsible_employee
+                    responsible_employee_info = {
+                        "id": responsible_employee.id,
+                        "name": responsible_employee.name,
+                        "surname": responsible_employee.surname,
+                        "login": responsible_employee.login,
+                    }
             
             status_info = None
             if issue.status_obj:
@@ -1022,7 +1036,8 @@ def get_issues():
                 "department": department_info,
                 "created_at": issue.created_at.isoformat() if issue.created_at else None,
                 "status": status_info,
-                "description": issue.description
+                "description": issue.description,
+                "responsible_employee": responsible_employee_info
             }
             result_issues.append(issue_data)
         
@@ -1108,7 +1123,6 @@ def new_issue():
         if department_obj and department_obj.responsible_employee and department_obj.responsible_employee.telegram_id:
             responsible_employee = department_obj.responsible_employee
             
-            #СТРОКА 1111
             notification_message = (
                 f"Новое происшествие ID: {new_issue_obj.id}\n"
                 f"Отдел: {department_obj.name} (Этаж {department_obj.floor})\n"
@@ -1138,20 +1152,9 @@ def new_issue():
                     f"{_prepare_log_prefix('ERROR')} 500 - Network error sending Telegram notification for issue ID {new_issue_obj.id}: {e_req}"
                 )
         
-        # 5. Формирование успешного ответа
-        created_issue_data = {
-            "id": new_issue_obj.id,
-            "department_id": new_issue_obj.department_id_fk,
-            "department_name": department_obj.name,
-            "status_id": new_issue_obj.status_id_fk,
-            "status_name": status_obj.status_name, # Из модели Status
-            "description": new_issue_obj.description,
-            "created_at": new_issue_obj.created_at.isoformat() if new_issue_obj.created_at else None,
-            "message": "Происшествие зарегистрировано.",
-            "notification_sent": notification_sent
-        }
+    
         
-        return jsonify(created_issue_data), 201
+        return jsonify({}), 201
         
     except Exception as e:
         db.session.rollback()
@@ -1264,5 +1267,30 @@ def get_statuses():
         return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {"error": "Internal server error"})), 500
 
 
+@app.route('/api/roles', methods=['GET'])
+# @jwt_required() # Этот эндпоинт НЕ защищен JWT, как вы просили
+def get_roles():
+    try:
+        roles_query = db.session.query(Role).order_by(Role.role_name).all()
+
+        result_roles = []
+        for role_item in roles_query:
+            role_data = {
+                "id": role_item.id,
+                "name": role_item.role_name 
+            }
+            result_roles.append(role_data)
+
+        return jsonify(result_roles), 200
+
+    except Exception as e:
+
+        log_prefix_error = _prepare_log_prefix("ERROR")
+        app.logger.error(
+            f"{log_prefix_error} 500 - Exception in get_roles: {str(e)}",
+            exc_info=True
+        )
+        return jsonify(ERROR_MESSAGES.get("INTERNAL_SERVER_ERROR", {})), 500
+
 if __name__ == '__main__':
-    serve(app, host="127.0.0.1", port=15000)
+    serve(app, host="0.0.0.0", port=15000)
