@@ -10,8 +10,8 @@ RUN pip install \
     waitress==3.0.2 \
     requests==2.32.3 \
     werkzeug==3.1.3 \
-    Flask-JWT-Extended \
-    Flask-CORS \
+    Flask-JWT-Extended==4.7.1 \
+    Flask-CORS==6.0.0 \
     && pip cache purge
 
 CMD ["python", "-u", "main.py"]
