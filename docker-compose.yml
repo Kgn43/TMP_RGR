@@ -42,11 +42,11 @@ services:
   bot:
     build:
       context: Bot  
-    container_name: bot_lr_3
+    container_name: bot_lr_4
 #    ports:
 #      - "15001:15001"
     networks:
-      - my_net_lr_3
+      - my_net_lr_4
     restart: always
     depends_on:
       - api
