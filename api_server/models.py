@@ -9,7 +9,6 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     role_name = db.Column("Role", db.String(20), nullable=False, unique=True)
 
-    # Связь: одна роль может быть у многих сотрудников
     employees = db.relationship('Employee', back_populates='role_obj', lazy='dynamic')
 
     def __repr__(self):
@@ -27,11 +26,8 @@ class Employee(db.Model):
     login = db.Column("Login", db.String(50), nullable=False, unique=True)
     passwd = db.Column("Passwd", db.Text, nullable=False)
 
-    # Связь: сотрудник имеет одну роль
     role_obj = db.relationship('Role', back_populates='employees')
     
-    # Связь: сотрудник может быть ответственным за несколько отделов
-    # `foreign_keys` здесь нужен, чтобы SQLAlchemy знала, какое поле в Department использовать для этой связи
     departments_responsible_for = db.relationship('Department', 
                                                   foreign_keys='Department.responsible_employee_id_fk', 
                                                   back_populates='responsible_employee', 
@@ -48,12 +44,10 @@ class Department(db.Model):
     floor = db.Column("Floor", db.Integer, nullable=False)
     responsible_employee_id_fk = db.Column("Responsible_employee_id", db.Integer, db.ForeignKey('employees.id'), nullable=False)
 
-    # Связь: у отдела один ответственный сотрудник
     responsible_employee = db.relationship('Employee', 
                                            foreign_keys=[responsible_employee_id_fk], 
                                            back_populates='departments_responsible_for')
     
-    # Связь: в одном отделе может быть много происшествий
     issues = db.relationship('Issue', back_populates='department', lazy='dynamic')
 
     def __repr__(self):
@@ -65,7 +59,6 @@ class Status(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     status_name = db.Column("Status", db.String(20), nullable=False, unique=True)
 
-    # Связь: один статус может быть у многих происшествий
     issues = db.relationship('Issue', back_populates='status_obj', lazy='dynamic')
 
     def __repr__(self):
@@ -80,10 +73,8 @@ class Issue(db.Model):
     status_id_fk = db.Column("Status", db.Integer, db.ForeignKey('statuses.id'), nullable=False)
     description = db.Column("Description", db.String(100), nullable=False)
 
-    # Связь: происшествие принадлежит одному отделу
     department = db.relationship('Department', foreign_keys=[department_id_fk], back_populates='issues')
-    
-    # Связь: происшествие имеет один статус
+
     status_obj = db.relationship('Status', foreign_keys=[status_id_fk], back_populates='issues')
 
     def __repr__(self):
