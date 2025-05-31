@@ -211,6 +211,22 @@ def check_user_role(required_roles_ids):
     return True
 
 
+@app.route('/api/me', methods=['GET'])
+@jwt_required() #Проверяет JWT из куки.
+def get_me_route():
+    current_user_id = get_jwt_identity()
+    
+    claims = get_jwt() 
+    role_id = claims.get("role_id")
+
+    user_data_for_frontend = {
+        "user_id": current_user_id,
+        "role_id": role_id
+    }
+
+    return jsonify(user_data_for_frontend), 200
+
+    
 
 '''
 
