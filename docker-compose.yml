@@ -39,17 +39,17 @@ services:
       - db
 
   
-#   bot:
-#     build:
-#       context: Bot  
-#     container_name: bot_lr_3
-# #    ports:
-# #      - "15001:15001"
-#     networks:
-#       - my_net_lr_3
-#     restart: always
-#     depends_on:
-#       - api
+  bot:
+    build:
+      context: Bot  
+    container_name: bot_lr_3
+#    ports:
+#      - "15001:15001"
+    networks:
+      - my_net_lr_3
+    restart: always
+    depends_on:
+      - api
   
   
   # pgadmin:
