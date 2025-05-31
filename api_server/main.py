@@ -9,10 +9,8 @@ from sqlalchemy.exc import IntegrityError
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from flask_jwt_extended import (
-    JWTManager, jwt_required, create_access_token,
-    create_refresh_token, get_jwt_identity, get_jwt
-)
+from flask_jwt_extended import JWTManager, create_access_token, set_access_cookies, jwt_required, unset_jwt_cookies, get_jwt_identity, get_jwt
+
 from datetime import timedelta
 
 import logging
@@ -23,15 +21,19 @@ warnings.filterwarnings("ignore", category=sa_exc.LegacyAPIWarning)
 from flask_cors import CORS
 
 app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
 CORS(app) 
 
 
+app.config["JWT_TOKEN_LOCATION"] = ["cookies"]  #токен ищем в куках
+app.config["JWT_COOKIE_SECURE"] = False  # В разработке False, в продакшене True (если HTTPS)
+app.config["JWT_COOKIE_HTTPONLY"] = True     #куки без JavaScript 
+app.config["JWT_COOKIE_SAMESITE"] = "Lax"
+app.config["JWT_COOKIE_CSRF_PROTECT"] = True #Включаем CSRF защиту для кук
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@db:5432/root'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 app.config["JWT_SECRET_KEY"] = "aboba_aboba_aboba_aboba"
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) 
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 ADMIN_ROLE_ID = 1
 
 db.init_app(app)
@@ -93,7 +95,6 @@ if not app.debug: # Настраиваем логирование для про�
     for handler in list(app.logger.handlers):
         app.logger.removeHandler(handler)
 
-    # Устанавливаем уровень логгера для приложения
     app.logger.setLevel(logging.INFO) # Логируем INFO и выше
     app.logger.propagate = False
 
@@ -104,8 +105,8 @@ if not app.debug: # Настраиваем логирование для про�
 
 def _prepare_log_prefix(log_level_str="INFO"): #для отображения в сообщении
     
-    ip_address = request.access_route[0] if request.access_route and len(request.access_route) > 0 else request.remote_addr
-    
+    ip_address = request.remote_addr
+
     method = getattr(request, 'method', 'UNKNOWN_METHOD')
     endpoint = getattr(request, 'path', 'UNKNOWN_ENDPOINT')
     
@@ -170,16 +171,38 @@ def login():
         additional_claims = {}
         if user.role_obj: 
             additional_claims["role_id"] = user.role_id
+        
+        access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)
+        
+        response_data = {
+            "message": "Login successful",
+            "user_id": str(user.id),
+        }
+        if "role_id" in additional_claims:
+            response_data["role_id"] = additional_claims["role_id"]
 
-        user_identity = str(user.id)
-        
-        access_token = create_access_token(identity=user_identity, additional_claims=additional_claims)
-        
-        return jsonify(access_token=access_token), 200
+        response = jsonify(response_data)
+        set_access_cookies(response, access_token) # Установка JWT и CSRF токена в куки
+        app.logger.info(f"{log_prefix} User {user.id} logged in successfully.")
+        return response, 200
     else:
-        app.logger.warning(f"{log_prefix.replace('INFO', 'WARNING')} 401 - Unauthorized: Неверный пароль для пользователя: {login}.")
+        app.logger.warning(f"{log_prefix} 401 - Unauthorized: Неверный пароль для пользователя: {login}.")
         return jsonify({**ERROR_MESSAGES.get("UNAUTHORIZED", {}), "details": "Неверный логин или пароль."}), 401
+
+      
+@app.route('/api/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    log_prefix = _prepare_log_prefix("INFO")
+    user_id = get_jwt_identity()
+    app.logger.info(f"{log_prefix} User {user_id} logging out.")
     
+    response_data = {"message": "Logout successful"}
+    response = jsonify(response_data)
+    unset_jwt_cookies(response)
+    return response, 200
+
+
 def check_user_role(required_roles_ids):
     claims = get_jwt()
     user_role_id = claims.get("role_id")
@@ -1268,7 +1291,6 @@ def get_statuses():
 
 
 @app.route('/api/roles', methods=['GET'])
-# @jwt_required() # Этот эндпоинт НЕ защищен JWT, как вы просили
 def get_roles():
     try:
         roles_query = db.session.query(Role).order_by(Role.role_name).all()
