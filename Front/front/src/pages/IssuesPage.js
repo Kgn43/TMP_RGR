@@ -1,42 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
-import '../stiles/IssuesPage.css'; // Используем общие стили для списков
+import React, { useState, useEffect, useCallback } from 'react';
+import apiClient from '../services/axiosSetup';
+import '../stiles/IssuesPage.css';
 
-const STATUS_OPEN_ID = 1; // ID для статуса "Открыто" 
-const STATUS_RESOLVED_ID = 2; // ID для статуса "Закрыто"
+const STATUS_OPEN_ID = 1;
+const STATUS_RESOLVED_ID = 2;
 
 const IssuesPage = () => {
-    const [allIssues, setAllIssues] = useState([]); // Храним все загруженные происшествия
-    const [filteredIssues, setFilteredIssues] = useState([]); // Отфильтрованные для отображения
+    const [allIssues, setAllIssues] = useState([]);
+    const [filteredIssues, setFilteredIssues] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [actionError, setActionError] = useState('');
-    const [timeFilter, setTimeFilter] = useState('all'); // 'all', 'day', 'week'
-    const navigate = useNavigate();
+    const [error, setError] = useState(''); 
+    const [actionMessage, setActionMessage] = useState('');
 
-    const [statusFilter, setStatusFilter] = useState(''); // Пустая строка - 'Все статусы'
-    const [availableStatuses, setAvailableStatuses] = useState([]); // Для выпадающего списка статусов
+    const [timeFilter, setTimeFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('');
+    const [availableStatuses, setAvailableStatuses] = useState([]);
 
-    const fetchIssues = async () => {
+    //Функция загрузки инцидентов
+    const fetchIssues = useCallback(async () => {
         setIsLoading(true);
         setError('');
-        setActionError('');
-        const token = localStorage.getItem('accessToken');
-
-        if (!token) { // Предполагаем, что список issues требует аутентификации/авторизации
-            setError("Ошибка аутентификации: токен не найден.");
-            setIsLoading(false);
-            navigate('/login');
-            return;
-        }
-
         try {
-            const response = await axios.get('http://127.0.0.1:15000/api/issues', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await apiClient.get('/issues');
             const sortedIssues = response.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            setAllIssues(sortedIssues); 
+            setAllIssues(sortedIssues);
+
             const uniqueStatuses = [];
             const statusMap = new Map();
             response.data.forEach(issue => {
@@ -47,64 +35,51 @@ const IssuesPage = () => {
                     uniqueStatuses.push({ id: statusId, name: statusName });
                 }
             });
-            // Сортируем статусы по имени или ID для консистентности
             uniqueStatuses.sort((a, b) => a.name.localeCompare(b.name));
             setAvailableStatuses(uniqueStatuses);
-            // setFilteredIssues(sortedIssues); // Это будет сделано в useEffect ниже
-        }  catch (err) {
+        } catch (err) {
             console.error("Ошибка при загрузке происшествий:", err);
             if (err.response) {
-                setError(`Ошибка API (${err.response.status}): ${err.response.data.message || err.response.data.details || err.response.statusText}`);
-                if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login');
-                }
+                setError(`Ошибка API (${err.response.status}): ${err.response.data?.message || err.response.data?.details || err.response.statusText}`);
             } else {
                 setError("Сетевая ошибка при загрузке происшествий.");
             }
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
-
+    //Применение фильтров
     useEffect(() => {
         let issuesToDisplay = [...allIssues];
-
-        // 1. Фильтрация по времени
         if (timeFilter !== 'all') {
             const now = new Date();
             let timeLimit = new Date(now);
-            if (timeFilter === 'day') {
-                timeLimit.setDate(now.getDate() - 1);
-            } else if (timeFilter === 'week') {
-                timeLimit.setDate(now.getDate() - 7);
-            }
+            if (timeFilter === 'day') timeLimit.setDate(now.getDate() - 1);
+            else if (timeFilter === 'week') timeLimit.setDate(now.getDate() - 7);
             issuesToDisplay = issuesToDisplay.filter(issue => {
                 if (!issue.created_at) return false;
-                const issueDate = new Date(issue.created_at);
-                return issueDate >= timeLimit;
+                return new Date(issue.created_at) >= timeLimit;
             });
         }
-
-        // 2. Фильтрация по статусу (применяется к уже отфильтрованным по времени)
-        if (statusFilter !== '') { // Если выбран конкретный статус
+        if (statusFilter !== '') {
             const selectedStatusId = parseInt(statusFilter, 10);
             issuesToDisplay = issuesToDisplay.filter(issue => (issue.status?.id || issue.status_id) === selectedStatusId);
         }
-
         setFilteredIssues(issuesToDisplay);
     }, [timeFilter, statusFilter, allIssues]);
 
+    //Начальная загрузка
     useEffect(() => {
         fetchIssues();
-    }, [navigate]);
+    }, [fetchIssues]);
 
+    //Изменение статуса
     const handleChangeStatus = async (issueId, currentStatusId, issueDescription) => {
-        setActionError('');
+        setActionMessage('');
         let newStatusId;
-        let actionTextForConfirm; // Переименовал для ясности
+        let actionTextForConfirm;
 
-        // Определяем новый статус и текст для подтверждения
         if (currentStatusId === STATUS_RESOLVED_ID) {
             newStatusId = STATUS_OPEN_ID;
             actionTextForConfirm = "вернуть в обработку";
@@ -112,38 +87,22 @@ const IssuesPage = () => {
             newStatusId = STATUS_RESOLVED_ID;
             actionTextForConfirm = "закрыть инцидент";
         } else {
-            setActionError("Для данного статуса действие не определено.");
+            setActionMessage({ text: "Для данного статуса действие не определено.", type: 'error' });
             return;
         }
 
         if (window.confirm(`Вы уверены, что хотите ${actionTextForConfirm} происшествие: "${issueDescription}"?`)) {
-            const token = localStorage.getItem('accessToken');
-            if (!token) {
-                setActionError("Ошибка аутентификации для выполнения действия.");
-                navigate('/login');
-                return;
-            }
             try {
-                await axios.put(`http://127.0.0.1:15000/api/issues/${issueId}`, 
-                    { new_status_id: newStatusId }, 
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-                
-                fetchIssues(); // Перезапрашиваем все для обновления status_name
-                alert(`Статус происшествия "${issueDescription}" успешно изменен.`);
-                // Убрано дублирование setActionError, newStatusId, actionText здесь
-
+                await apiClient.put(`/issues/${issueId}`, { new_status_id: newStatusId });
+                setActionMessage({ text: `Статус происшествия "${issueDescription}" успешно изменен.`, type: 'success' });
+                fetchIssues(); // Перезагружаем список для обновления
             } catch (err) {
                 console.error(`Ошибка при изменении статуса для issue ${issueId}:`, err);
-                if (err.response && err.response.data) {
-                    setActionError(`Не удалось изменить статус: ${err.response.data.message || err.response.data.details || 'Ошибка сервера'}`);
-                } else {
-                    setActionError("Сетевая ошибка при изменении статуса.");
-                }
+                const errorMsg = err.response?.data?.message || err.response?.data?.details || 'Ошибка сервера';
+                setActionMessage({ text: `Не удалось изменить статус: ${errorMsg}`, type: 'error' });
             }
         }
     };
-
 
     const getStatusClassName = (statusId) => {
         switch (statusId) {
@@ -153,22 +112,18 @@ const IssuesPage = () => {
         }
     };
 
-    const handleTimeFilterChange = (event) => {
-        setTimeFilter(event.target.value);
-    };
-
-    const handleStatusFilterChange = (event) => {
-        setStatusFilter(event.target.value);
-    };
+    const handleTimeFilterChange = (event) => setTimeFilter(event.target.value);
+    const handleStatusFilterChange = (event) => setStatusFilter(event.target.value);
 
     if (isLoading) return <div className="loading-message">Загрузка происшествий...</div>;
-    if (error) return <div className="error-message-page">{error}</div>;
+    if (error && allIssues.length === 0) return <div className="error-message-page">{error}</div>;
 
-     return (
+    return (
         <div className="resource-list-page-container">
             <h1>Список происшествий</h1>
 
             <div className="controls-container issues-controls">
+                {/* фильтры */}
                 <div className="filter-group">
                     <label htmlFor="time-filter-select">Показать за: </label>
                     <select id="time-filter-select" value={timeFilter} onChange={handleTimeFilterChange}>
@@ -177,10 +132,9 @@ const IssuesPage = () => {
                         <option value="week">Последнюю неделю</option>
                     </select>
                 </div>
-
                 <div className="filter-group">
                     <label htmlFor="status-filter-select">Фильтр по статусу: </label>
-                    <select id="status-filter-select" value={statusFilter} onChange={handleStatusFilterChange} disabled={isLoading}>
+                    <select id="status-filter-select" value={statusFilter} onChange={handleStatusFilterChange} disabled={isLoading /* или isFetchingStatuses */}>
                         <option value="">Все статусы</option>
                         {availableStatuses.map(status => (
                             <option key={status.id} value={status.id.toString()}>
@@ -191,15 +145,22 @@ const IssuesPage = () => {
                 </div>
             </div>
 
+            {/* Сообщение об ошибке/успехе для действий */}
+            {actionMessage && (
+                <p className={`message-inline ${actionMessage.type === 'error' ? 'error-message-inline' : 'success-message-inline'}`}>
+                    {actionMessage.text}
+                </p>
+            )}
+            {/* Если была ошибка при загрузке, но какие-то данные уже есть, можно показать ее здесь */}
+            {error && allIssues.length > 0 && <p className="error-message-inline">{error}</p>}
 
-            {actionError && <p className="error-message-inline">{actionError}</p>}
 
             {filteredIssues.length > 0 ? (
                 <ul className="resource-item-list">
                     {filteredIssues.map(issue => (
-                        
-                         <li key={issue.id} className="resource-list-item">
+                        <li key={issue.id} className="resource-list-item">
                             <div className="resource-info issue-info">
+                                {/* отображение деталей инцидента  */}
                                 <span className="issue-id">ID: {issue.id}</span>
                                 <span className="issue-description" title={issue.description}>
                                     Описание: {issue.description.length > 50 ? `${issue.description.substring(0, 50)}...` : issue.description}
@@ -219,6 +180,7 @@ const IssuesPage = () => {
                                 <span className="resource-detail">Создано: {issue.created_at ? new Date(issue.created_at).toLocaleString() : 'N/A'}</span>
                             </div>
                             <div className="issue-actions">
+                                {/* кнопки действий  */}
                                 {(issue.status_id === STATUS_OPEN_ID || (issue.status && issue.status.id === STATUS_OPEN_ID)) && (
                                     <button
                                         onClick={() => handleChangeStatus(issue.id, STATUS_OPEN_ID, issue.description)}
@@ -243,7 +205,7 @@ const IssuesPage = () => {
                 </ul>
             ) : (
                 <p className="no-resources-message">
-                    {(timeFilter !== 'all' || statusFilter !== '') ? 'Происшествия по заданным фильтрам не найдены.' : 'Список происшествий пуст или не удалось загрузить.'}
+                    {isLoading ? 'Загрузка...' : (timeFilter !== 'all' || statusFilter !== '') ? 'Происшествия по заданным фильтрам не найдены.' : 'Список происшествий пуст.'}
                 </p>
             )}
         </div>

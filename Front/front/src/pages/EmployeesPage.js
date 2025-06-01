@@ -1,116 +1,100 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
-import '../stiles/EmployeesPage.css'; // Убедитесь, что стили подключены
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import apiClient from '../services/axiosSetup'; 
+import '../stiles/EmployeesPage.css';
 
 const EmployeesPage = () => {
     const [allEmployees, setAllEmployees] = useState([]);
-    const [roles, setRoles] = useState([]);
-    const [selectedRole, setSelectedRole] = useState('');
+    const [roles, setRoles] = useState([]); //Будем хранить объекты ролей {id, name}
+    const [selectedRoleId, setSelectedRoleId] = useState('');//Фильтруем по ID роли
     const [filteredEmployees, setFilteredEmployees] = useState([]);
+    
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [actionError, setActionError] = useState(''); // Для ошибок удаления/действий
-    const navigate = useNavigate();
+    const [actionMessage, setActionMessage] = useState('');
 
-    // Функция для загрузки сотрудников
-    const fetchEmployees = async () => {
+    const fetchEmployeesAndRoles = useCallback(async () => {
         setIsLoading(true);
         setError('');
-        setActionError(''); // Сбрасываем ошибку действия
-        const token = localStorage.getItem('accessToken');
-
-        if (!token) {
-            setError("Ошибка аутентификации: токен не найден.");
-            setIsLoading(false);
-            navigate('/login');
-            return;
-        }
-
         try {
-            const response = await axios.get('http://127.0.0.1:15000/api/employees', {
-                headers: { Authorization: `Bearer ${token}` }
+            const employeesResponse = await apiClient.get('/employees');
+            const employeesData = employeesResponse.data;
+            setAllEmployees(employeesData);
+
+            // Извлекаем уникальные роли из полученных сотрудников
+            const uniqueRolesMap = new Map();
+            employeesData.forEach(emp => {
+                // Используем emp.role_id и emp.role (текстовое имя роли)
+                if (emp.role_id !== undefined && emp.role && !uniqueRolesMap.has(emp.role_id)) {
+                    uniqueRolesMap.set(emp.role_id, { id: emp.role_id, name: emp.role });
+                }
             });
-            setAllEmployees(response.data);
-            const uniqueRoles = [...new Set(response.data.map(emp => emp.role).filter(Boolean))].sort();
-            setRoles(uniqueRoles);
-            // Фильтрация будет применена в useEffect ниже
+            // Сортируем роли по имени для отображения в селекте
+            setRoles(Array.from(uniqueRolesMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
+
         } catch (err) {
             console.error("Ошибка при загрузке сотрудников:", err);
             if (err.response) {
-                setError(`Ошибка API (${err.response.status}): ${err.response.data.message || err.response.data.details || err.response.statusText}`);
-                if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login');
-                }
+                setError(`Ошибка API (${err.response.status}): ${err.response.data?.message || err.response.data?.details || err.response.statusText}`);
             } else {
                 setError("Сетевая ошибка при загрузке сотрудников.");
             }
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
-        fetchEmployees();
-    }, [navigate]); // Зависимость от navigate, так как используется внутри
+        fetchEmployeesAndRoles();
+    }, [fetchEmployeesAndRoles]);
 
-    // Фильтрация сотрудников при изменении выбранной роли или общего списка
+    // Фильтрация сотрудников
     useEffect(() => {
-        if (selectedRole === '') {
+        if (selectedRoleId === '') {
             setFilteredEmployees(allEmployees);
         } else {
-            setFilteredEmployees(allEmployees.filter(emp => emp.role === selectedRole));
+            const roleIdToCompare = parseInt(selectedRoleId, 10);
+            setFilteredEmployees(
+                allEmployees.filter(emp => emp.role_id === roleIdToCompare)
+            );
         }
-    }, [selectedRole, allEmployees]);
+    }, [selectedRoleId, allEmployees]);
 
     const handleRoleChange = (event) => {
-        setSelectedRole(event.target.value);
+        setSelectedRoleId(event.target.value);
     };
 
     const handleDeleteEmployee = async (employeeId, employeeName) => {
-        setActionError(''); // Сбрасываем предыдущую ошибку действия
+        setActionMessage('');
         if (window.confirm(`Вы уверены, что хотите удалить сотрудника ${employeeName}?`)) {
-            const token = localStorage.getItem('accessToken');
-            if (!token) {
-                setActionError("Ошибка аутентификации для выполнения действия.");
-                navigate('/login');
-                return;
-            }
             try {
-                await axios.delete(`http://127.0.0.1:15000/api/employees/${employeeId}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                // Обновляем списки сотрудников после успешного удаления
+                await apiClient.delete(`/employees/${employeeId}`);
                 setAllEmployees(prevEmployees => prevEmployees.filter(emp => emp.id !== employeeId));
-                // setFilteredEmployees останется актуальным благодаря useEffect, который следит за allEmployees
-                alert(`Сотрудник ${employeeName} успешно удален.`); // Или более мягкое уведомление
+                setActionMessage({ text: `Сотрудник ${employeeName} успешно удален.`, type: 'success' });
             } catch (err) {
                 console.error(`Ошибка при удалении сотрудника ${employeeId}:`, err);
-                if (err.response && err.response.data) {
-                    setActionError(`Не удалось удалить: ${err.response.data.message || err.response.data.details || 'Неизвестная ошибка сервера'}`);
-                } else {
-                    setActionError("Сетевая ошибка при удалении сотрудника.");
-                }
+                const errorMsg = err.response?.data?.message || err.response?.data?.details || 'Ошибка сервера';
+                setActionMessage({ text: `Не удалось удалить: ${errorMsg}`, type: 'error' });
             }
         }
     };
 
-
     if (isLoading) return <div className="loading-message">Загрузка сотрудников...</div>;
-    if (error) return <div className="error-message-page">{error}</div>;
+    if (error && allEmployees.length === 0) return <div className="error-message-page">{error}</div>;
 
     return (
-        <div className="employees-page-container">
+        <div className="employees-page-container resource-list-page-container">
             <h1>Управление сотрудниками</h1>
 
             <div className="controls-container">
-                <div className="role-filter">
+                <div className="filter-group">
                     <label htmlFor="role-select">Фильтр по роли: </label>
-                    <select id="role-select" value={selectedRole} onChange={handleRoleChange}>
+                    <select id="role-select" value={selectedRoleId} onChange={handleRoleChange}>
                         <option value="">Все роли</option>
-                        {roles.map(roleName => (
-                            <option key={roleName} value={roleName}>
-                                {roleName}
+                        {/* roles теперь содержит объекты {id, name}, где name взят из emp.role */}
+                        {roles.map(roleObj => (
+                            <option key={roleObj.id} value={roleObj.id.toString()}>
+                                {roleObj.name} 
                             </option>
                         ))}
                     </select>
@@ -120,31 +104,38 @@ const EmployeesPage = () => {
                 </Link>
             </div>
 
-            {actionError && <p className="error-message-inline">{actionError}</p>}
+            {actionMessage && (
+                <p className={`message-inline ${actionMessage.type === 'error' ? 'error-message-inline' : 'success-message-inline'}`}>
+                    {actionMessage.text}
+                </p>
+            )}
+            {error && allEmployees.length > 0 && <p className="error-message-inline">{error}</p>}
+
 
             {filteredEmployees.length > 0 ? (
-                <ul className="employee-list">
+                <ul className="employee-list resource-item-list">
                     {filteredEmployees.map(employee => (
-                        <li key={employee.id} className="employee-list-item">
-                            <div className="employee-info">
+                        <li key={employee.id} className="employee-list-item resource-list-item">
+                            <div className="employee-info resource-info">
                                 <Link to={`/employees/${employee.id}`} className="employee-link">
                                     {employee.name} {employee.surname} ({employee.login})
                                 </Link>
-                                <span className="employee-role"> - {employee.role}</span>
+                                {/* Отображаем employee.role напрямую */}
+                                <span className="employee-role resource-detail"> - {employee.role || 'N/A'}</span>
                             </div>
                             <button
                                 onClick={() => handleDeleteEmployee(employee.id, `${employee.name} ${employee.surname}`)}
-                                className="delete-button"
-                                title="Удалить сотрудника" 
+                                className="delete-button action-button"
+                                title="Удалить сотрудника"
                             >
-                                ✖ {/* HTML-код для крестика (✕) */}
+                                ✖
                             </button>
                         </li>
                     ))}
                 </ul>
             ) : (
-                <p className="no-employees-message">
-                    {selectedRole ? `Сотрудники с ролью "${selectedRole}" не найдены.` : 'Список сотрудников пуст или не удалось загрузить.'}
+                <p className="no-resources-message">
+                    {isLoading ? 'Загрузка...' : selectedRoleId ? `Сотрудники с выбранной ролью не найдены.` : 'Список сотрудников пуст.'}
                 </p>
             )}
         </div>

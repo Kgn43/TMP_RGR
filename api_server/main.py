@@ -343,7 +343,7 @@ def new_employee():
             errors["phone_number"] = "Номер телефона должен состоять ровно из 11 цифр и начинаться на '89'."
 
         #Валидация Telegram ID (Ровно 10 цифр. НЕ УНИКАЛЕН.)
-        if not re.fullmatch(r"^\d{10}$", telegram_id):
+        if not re.fullmatch(r"^\d+$", telegram_id):
             errors["telegram_id"] = "Telegram ID должен состоять ровно из 10 цифр."
 
         #Валидация ID Роли
@@ -591,7 +591,7 @@ def update_employee_info(employee_id):
             employee.phone_number = phone_number
 
         # Telegram ID
-        if not re.fullmatch(r"^\d{10}$", telegram_id):
+        if not re.fullmatch(r"^\d+$", telegram_id):
             errors["telegram_id"] = "Telegram ID: 10 цифр."
         else:
             employee.telegram_id = telegram_id
