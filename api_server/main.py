@@ -22,13 +22,13 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
-CORS(app) 
-
+# CORS(app) 
+app.logger.setLevel(logging.DEBUG)
 
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]  #токен ищем в куках
-app.config["JWT_COOKIE_SECURE"] = False  # В разработке False, в продакшене True (если HTTPS)
+app.config["JWT_COOKIE_SECURE"] = True  # В разработке False, в продакшене True (если HTTPS)
 app.config["JWT_COOKIE_HTTPONLY"] = True     #куки без JavaScript 
-app.config["JWT_COOKIE_SAMESITE"] = "Lax"
+app.config["JWT_COOKIE_SAMESITE"] = "None"
 app.config["JWT_COOKIE_CSRF_PROTECT"] = True #Включаем CSRF защиту для кук
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://root:root@db:5432/root'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
@@ -38,6 +38,19 @@ ADMIN_ROLE_ID = 1
 
 db.init_app(app)
 jwt = JWTManager(app)
+
+from flask_cors import CORS
+CORS(
+    app,  # Применить к вашему Flask app
+    origins=["https://localhost"],  # Разрешить запросы ТОЛЬКО от https://localhost
+                                  # Важно: НЕ используйте "*" если supports_credentials=True
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], # Разрешенные методы
+    allow_headers=["Content-Type", "X-CSRF-TOKEN", "Authorization"], # Разрешенные заголовки
+                                                                    # Добавьте 'Authorization', если вы используете токены авторизации
+    supports_credentials=True,  # Это КРИТИЧЕСКИ ВАЖНО для withCredentials: true на клиенте
+    # max_age=86400 # Опционально: как долго кешировать preflight-ответы (в секундах)
+)
+
 
 
 

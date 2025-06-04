@@ -64,9 +64,9 @@ const Navigation = () => {
 };
 
 function App() {
-  const { isLoading: authIsLoading } = useAuth(); // Переименовываем, чтобы не конфликтовать с другими isLoading, если они будут
+  const { isLoading: authIsLoading } = useAuth();
 
-  if (authIsLoading) { // Используем isLoading из useAuth() для всего приложения
+  if (authIsLoading) {
       return <div>Загрузка приложения...</div>;
   }
 
@@ -74,7 +74,7 @@ function App() {
       <>
           <Navigation />
           <Routes>
-              {/* Публичные маршруты */}
+            {/* Публичные маршруты */}
               <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<LoginPage />} />
 

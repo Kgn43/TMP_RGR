@@ -6,7 +6,6 @@ import '../stiles/LoginPage.css';
 const LoginPage = () => {
     const [loginValue, setLoginValue] = useState('');
     const [password, setPassword] = useState('');
-    // const [errors, setErrors] = useState({}); //Оставим для возможных ошибок валидации от API, если бэкенд их вернет в таком формате
     const [fieldErrors, setFieldErrors] = useState({});
     const [generalError, setGeneralError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
