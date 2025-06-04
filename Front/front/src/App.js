@@ -15,12 +15,13 @@ import IssuesPage from './pages/IssuesPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 import React from 'react';
+// eslint-disable-next-line no-unused-vars
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const Navigation = () => {
-  const { isAuthenticated, logout, currentUser } = useAuth(); //Получаем состояние и функции из контекста
+  const { isAuthenticated, logout } = useAuth(); //Получаем состояние и функции из контекста
 
   const handleLogout = async () => {
       try {

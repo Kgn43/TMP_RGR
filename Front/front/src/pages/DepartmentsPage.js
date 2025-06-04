@@ -15,6 +15,7 @@ const DepartmentsPage = () => {
     const [actionMessage, setActionMessage] = useState({ text: '', type: '' });
     const [actionMessageTimer, setActionMessageTimer] = useState(null); // Для хранения ID таймера
 
+    // eslint-disable-next-line no-unused-vars
     const navigate = useNavigate();
     const location = useLocation();
 
