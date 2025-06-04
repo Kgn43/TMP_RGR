@@ -1,9 +1,47 @@
-name: Test Trigger
+      
+# Название нашего workflow - будет отображаться в GitHub Actions
+name: Basic CI Checks
 
-on: push
+#Триггеры
+on:
+  push: # При каждом push (отправке кода)
+    branches: [ main ]
+  pull_request: # При каждом pull request (запросе на слияние)
+    branches: [ main ]
 
+#Задачи, которые будут выполняться
 jobs:
-  test_job:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Test job executed"
+      # Шаг 1: Забрать (скачать) код из репозитория
+      - name: Checkout code
+        uses: actions/checkout@v4 # Используем готовое действие (action) от GitHub
+
+      # --- Сборка Фронтенда ---
+      - name: Setup Node.js # Название шага
+        uses: actions/setup-node@v4 # Используем готовое действие для настройки Node.js
+        with:
+          node-version: '20' # Укажите версию Node.js, которую вы используете (например, 18, 20)
+
+      - name: Install Frontend Dependencies #Установка зависимостей фронтенда
+        working-directory: ./Front/front
+        run: npm install
+
+      - name: Build Frontend #Сборка фронтенда
+        working-directory: ./Front/front
+        run: npm run build
+
+      # --- Проверки для Бэкенда ---
+      - name: Setup Python #Настройка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Backend Dependencies #Установка зависимостей API
+        working-directory: ./api_server
+        run: | 
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+    
