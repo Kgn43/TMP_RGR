@@ -110,7 +110,7 @@ jobs:
             echo "Starting deployment..."
             cd ${{ secrets.PROJECT_PATH_ON_SERVER }}
             echo "Pulling latest images..."
-            docker compose pull api bot # Укажите имена ваших сервисов из docker-compose.yml
+            docker-compose pull api bot # Укажите имена ваших сервисов из docker-compose.yml
             echo "Restarting services..."
             # Важно: используйте docker compose (с пробелом), если у вас Docker Compose V2.
             # Если Docker Compose V1, то docker-compose (с дефисом).
