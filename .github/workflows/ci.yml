@@ -114,7 +114,7 @@ jobs:
             echo "Restarting services..."
             # Важно: используйте docker compose (с пробелом), если у вас Docker Compose V2.
             # Если Docker Compose V1, то docker-compose (с дефисом).
-            docker compose up -d --force-recreate --remove-orphans api bot nginx # Перезапускаем нужные сервисы
+            docker-compose up -d --force-recreate --remove-orphans api bot nginx # Перезапускаем нужные сервисы
             echo "Cleaning up old Docker images..."
             docker image prune -af # Удаляем все неиспользуемые образы (с флагом -a для всех неиспользуемых, не только "dangling")
             echo "Deployment finished!"
