@@ -27,8 +27,7 @@ services:
       start_period: 5s
 
   api:
-    build:
-      context: api_server  
+    image: ghcr.io/kgn43/my-api-image:latest
     container_name: api_lr_4
     # ports:
     #   - "15000:15000"
@@ -40,8 +39,7 @@ services:
 
   
   bot:
-    build:
-      context: Bot  
+    image: ghcr.io/kgn43/my-bot-image:latest  
     container_name: bot_lr_4
 #    ports:
 #      - "15001:15001"
